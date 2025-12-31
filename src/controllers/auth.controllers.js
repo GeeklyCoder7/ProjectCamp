@@ -4,8 +4,16 @@ import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { emailVerificationContent, sendEmail } from "../utils/mail.js";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 
-// Controller for registering as new user
+// Cookie options
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+};
+
+// Controller for registering a new user
 const registerUser = asyncHandler(async (req, res) => {
   const { userName, email, password } = req.body;
 
@@ -121,6 +129,9 @@ const login = asyncHandler(async (req, res) => {
   user.refreshToken = refreshToken;
   user.save({ validateBeforeSave: false });
 
+  // Setting the refresh token in the cookie
+  res.cookie("refreshToken", refreshToken, cookieOptions);
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -131,11 +142,59 @@ const login = asyncHandler(async (req, res) => {
           email: user.email,
         },
         accessToken,
-        refreshToken,
       },
       "Login successful",
     ),
   );
 });
 
-export { registerUser, verifyEmail, login };
+// Generates a new access token if exising expired
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const cookieRefreshToken = req.cookies?.refreshToken;
+
+  if (!cookieRefreshToken) {
+    throw new ApiError(401, "RefreshToken is missing.");
+  }
+
+  let decodedUser;
+  try {
+    decodedUser = jwt.verify(
+      cookieRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET,
+    );
+  } catch (error) {
+    throw new ApiError(401, "Invalid or expired refresh token.");
+  }
+
+  // Finding the user with the decodedUser's id to check if it exists in the DB
+  const user = await User.findById(decodedUser._id);
+
+  if (!user) {
+    throw new ApiError(404, "User not found.");
+  }
+
+  // Compare the existing user's refresh token from DB with cookie's refresh token –> VERY IMPORTANT
+  if (user.refreshToken !== cookieRefreshToken) {
+    throw new ApiError(403, "Refresh token mismatch.");
+  }
+
+  // Generating new accessToken if everything is fine
+  const newAccessToken = user.generateAccessToken();
+  const newRefreshToken = user.generateRefreshToken();
+
+  // Updating the refreshToken of the current user
+  user.refreshToken = newRefreshToken;
+  await user.save({ validateBeforeSave: false });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        accessToken: newAccessToken,
+      },
+      "Access token refreshed",
+    ),
+  );
+});
+
+export { registerUser, verifyEmail, login, refreshAccessToken };
