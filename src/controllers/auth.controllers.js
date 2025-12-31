@@ -110,11 +110,18 @@ const login = asyncHandler(async (req, res) => {
   }
 
   // Finding the user with the received email
-  const user = await User.findOne({ email: email });
+  const user = await User.findOne({ email: email }).select("+password");
 
   // Checking if the 'user' even exist or not
   if (!user) {
     throw new ApiError(401, "Email does not exist.", []);
+  }
+
+  // Checking if the password is correct
+  const isPasswordCorrect = await user.isPasswordCorrect(password);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(401, "Incorrect password", []);
   }
 
   // Checking if the email is even verified or not
@@ -212,4 +219,39 @@ const logout = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Logged out successfully"));
 });
 
-export { registerUser, verifyEmail, login, refreshAccessToken, logout };
+// Controller for changing password
+const changePassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    throw new ApiError(400, "Old and new passwords required", []);
+  }
+
+  const user = await User.findById(req.user._id).select("+password"); // Explicityly including the password field while fetching the user
+
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword); // checking if the old password entered is correct or not
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(401, "Password entered is wrong.", []);
+  }
+
+  user.password = newPassword;
+  user.refreshToken = undefined;
+
+  await user.save(); // Saves the user entity with validation
+
+  res.clearCookie("refreshToken", cookieOptions);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password was successfully changed"));
+});
+
+export {
+  registerUser,
+  verifyEmail,
+  login,
+  refreshAccessToken,
+  logout,
+  changePassword,
+};
