@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   login,
+  logout,
   refreshAccessToken,
   registerUser,
   verifyEmail,
@@ -11,7 +12,8 @@ const authRouter = Router();
 authRouter.post("/register", registerUser); // Used for /users/register
 authRouter.post("/login", login); // Used for /users/register
 authRouter.post("/verify-email/:token", verifyEmail); // Used for /users/verify-email/:token
-authRouter.post("/refresh-token", refreshAccessToken);
+authRouter.post("/refresh-token", refreshAccessToken); // Used for regenerating the access token
+authRouter.post("/logout", verifyJWT, logout); // Used for signing out the current logged in user
 
 // Temporary route for testing
 authRouter.get("/me", verifyJWT, (req, res) => {

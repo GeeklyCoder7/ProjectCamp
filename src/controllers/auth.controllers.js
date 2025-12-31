@@ -197,4 +197,19 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   );
 });
 
-export { registerUser, verifyEmail, login, refreshAccessToken };
+// Logs out the current logged in user
+const logout = asyncHandler(async (req, res) => {
+  const user = req.user; // comming from verifyJWT middleware
+
+  // Removing the refresh token from the db for the current user
+  user.refreshToken = undefined;
+  await user.save({ validateBeforeSave: false });
+
+  res.clearCookie("refreshToken", cookieOptions);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Logged out successfully"));
+});
+
+export { registerUser, verifyEmail, login, refreshAccessToken, logout };

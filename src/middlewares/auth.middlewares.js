@@ -23,7 +23,9 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
   }
 
   // Checking if any user with the token exist
-  const user = await User.findOne({_id: decodedToken._id}).select("-password -refreshToken");
+  const user = await User.findOne({ _id: decodedToken._id }).select(
+    "-password -refreshToken",
+  );
 
   if (!user) {
     throw new ApiError(401, "User not found");
