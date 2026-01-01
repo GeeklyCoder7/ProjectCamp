@@ -2,7 +2,11 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { User } from "../models/user.models.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
-import { emailVerificationContent, sendEmail } from "../utils/mail.js";
+import {
+  emailVerificationContent,
+  forgotPasswordMailContent,
+  sendEmail,
+} from "../utils/mail.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 
@@ -247,6 +251,92 @@ const changePassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password was successfully changed"));
 });
 
+// Forgot password controller
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new ApiError(400, "Email is required");
+  }
+
+  const user = await User.findOne({ email: email }); // Finds the user with the received email
+
+  // NOTE: Never reveal whether the email is registered or not
+  if (!user) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          {},
+          "If the email is registered, the reset link has been sent.",
+        ),
+      );
+  }
+
+  // Generating tokens for user authentication
+  const { unHashedToken, hashedToken, tokenExpiry } =
+    user.generateTemporaryToken();
+
+  user.forgotPasswordToken = hashedToken;
+  user.forgotPasswordExpiry = tokenExpiry;
+
+  user.save({ validateBeforeSave: false });
+
+  const resetLink = `${req.protocol}://${req.get("host")}/api/v1/users/reset-password/${unHashedToken}`;
+
+  await sendEmail({
+    email: user.email,
+    subject: "Reset your password",
+    mailGenContent: forgotPasswordMailContent(user.userName, resetLink),
+  });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        {},
+        "If the email exists, the reset link has been sent!",
+      ),
+    );
+});
+
+// Controller that actually resets the password
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { newPassword } = req.body;
+
+  if (!token) {
+    throw new ApiError(400, "Token is missing", []);
+  }
+
+  if (!newPassword) {
+    throw new ApiError(400, "New password is missing", []);
+  }
+
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await User.findOne({
+    forgotPasswordToken: hashedToken,
+    forgotPasswordExpiry: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new ApiError(400, "Invalid or expired reset token", []);
+  }
+
+  user.password = newPassword; // Sets the new password for the user
+  user.forgotPasswordToken = undefined;
+  user.forgotPasswordExpiry = undefined;
+  user.refreshToken = undefined;
+  await user.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
 export {
   registerUser,
   verifyEmail,
@@ -254,4 +344,6 @@ export {
   refreshAccessToken,
   logout,
   changePassword,
+  forgotPassword,
+  resetPassword,
 };
