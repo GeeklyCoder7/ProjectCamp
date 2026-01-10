@@ -31,6 +31,14 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, "User not found");
   }
 
+  // Checking if the user is blocked
+  if (user.isBlocked) {
+    throw new ApiError(
+      403,
+      "Account is blocked. Access is denied."
+    );
+  }
+
   req.user = user;
 
   next();

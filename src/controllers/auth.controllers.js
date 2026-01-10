@@ -121,6 +121,14 @@ const login = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Email does not exist.", []);
   }
 
+  // Cheking if the user is blocked
+  if (user.isBlocked) {
+    throw new ApiError(
+      403,
+      "Your account has been blocked. Please contact support.",
+    );
+  }
+
   // Checking if the password is correct
   const isPasswordCorrect = await user.isPasswordCorrect(password);
 
@@ -128,7 +136,7 @@ const login = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Incorrect password", []);
   }
 
-  // Checking if the email is even verified or not
+  // Checking if the email is een verified or not
   if (!user.isEmailVerified) {
     throw new ApiError(403, "Email is not verified, please verify it.", []);
   }
