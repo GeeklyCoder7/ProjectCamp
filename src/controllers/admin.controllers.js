@@ -7,7 +7,9 @@ import { asyncHandler } from "../utils/async-handler.js";
 
 // Controller for getting all users
 const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await User.find().select("-password -refreshToken");
+  const users = await User.find({ isBlocked: false }).select(
+    "-password -refreshToken",
+  );
 
   return res
     .status(200)
@@ -22,6 +24,10 @@ const deleteUser = asyncHandler(async (req, res) => {
 
   if (!existingUser) {
     throw new ApiError(404, "User not found");
+  }
+
+  if (existingUser.role == "admin") {
+    throw new ApiError(403, "Admin users cannot be deleted");
   }
 
   await existingUser.deleteOne(); // Deleting the user
