@@ -49,7 +49,7 @@ const addProjectMember = asyncHandler(async (req, res) => {
     throw new ApiError(400, "New member's ID required");
   }
 
-  // Finding project with the received ID
+  // Checking if the project even exist
   const existingProject = await Project.findById(currentProjectId);
 
   if (!existingProject) {
@@ -102,4 +102,62 @@ const addProjectMember = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Member added successfully"));
 });
 
-export { createProject, addProjectMember };
+// Controller for removing member from the project
+const removeMember = asyncHandler(async (req, res) => {
+  const { currentProjectId } = req.params;
+  const { removeMemberId } = req.body;
+
+  // Validating inputs
+  if (!currentProjectId) {
+    throw new ApiError(400, "Project id required");
+  }
+
+  if (!removeMemberId) {
+    throw new ApiError(400, "Member id required");
+  }
+
+  // Checking if the project even exist
+  const existingProject = await Project.findById(currentProjectId);
+
+  if (!existingProject) {
+    throw new ApiError(404, "Project does not exist");
+  }
+
+  // Checking if the member even exist in the project
+  const isMember = existingProject.members.some(
+    (member) => member.user.toString() === removeMemberId,
+  );
+
+  if (!isMember) {
+    throw new ApiError(404, "Member not present in the project");
+  }
+
+  // Checking if the current member is the owner
+  const isOwner = existingProject.members.some(
+    (member) =>
+      member.user.toString() === req.user._id.toString() &&
+      member.role === "owner",
+  );
+
+  if (!isOwner) {
+    throw new ApiError(403, "You are not authorized to remove a member");
+  }
+
+  // Preventing the owner from removing itself
+  if (removeMemberId === req.user._id.toString()) {
+    throw new ApiError(400, "Project owner cannot remove himself.");
+  }
+
+  // Removing the member
+  existingProject.members = existingProject.members.filter(
+    (member) => member.user.toString() !== removeMemberId,
+  );
+
+  await existingProject.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Member removed successfully"));
+});
+
+export { createProject, addProjectMember, removeMember };
