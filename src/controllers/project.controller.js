@@ -57,13 +57,7 @@ const addProjectMember = asyncHandler(async (req, res) => {
   }
 
   // Checking if the member trying to add others is owner of the project (others cannot add new members)
-  const isOwner = existingProject.members.some(
-    (member) =>
-      member.user.toString() === req.user._id.toString() &&
-      member.role === "owner",
-  );
-
-  if (!isOwner) {
+  if (!existingProject.isOwner(req.user._id.toString())) {
     throw new ApiError(
       403,
       "You are not authorized to add members to this project",
@@ -71,11 +65,7 @@ const addProjectMember = asyncHandler(async (req, res) => {
   }
 
   // Checking if member being added is already a part of the project
-  const alreadyMember = existingProject.members.some(
-    (member) => member.user.toString() === memberId,
-  );
-
-  if (alreadyMember) {
+  if (existingProject.hasMember(memberId)) {
     throw new ApiError(
       409,
       "The member you are trying to add is already a part of this project",
@@ -124,22 +114,12 @@ const removeMember = asyncHandler(async (req, res) => {
   }
 
   // Checking if the member even exist in the project
-  const isMember = existingProject.members.some(
-    (member) => member.user.toString() === removeMemberId,
-  );
-
-  if (!isMember) {
+  if (!existingProject.hasMember(removeMemberId)) {
     throw new ApiError(404, "Member not present in the project");
   }
 
   // Checking if the current member is the owner
-  const isOwner = existingProject.members.some(
-    (member) =>
-      member.user.toString() === req.user._id.toString() &&
-      member.role === "owner",
-  );
-
-  if (!isOwner) {
+  if (!existingProject.isOwner(req.user._id.toString())) {
     throw new ApiError(403, "You are not authorized to remove a member");
   }
 
@@ -160,4 +140,44 @@ const removeMember = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Member removed successfully"));
 });
 
-export { createProject, addProjectMember, removeMember };
+// Controller for updating project state
+const updateProjectState = asyncHandler(async (req, res) => {
+  const { currentProjectId } = req.params;
+  const { newState } = req.body;
+
+  // Validating inputs
+  if (!currentProjectId) {
+    throw new ApiError(400, "Project id is required");
+  }
+
+  if (!newState) {
+    throw new ApiError(400, "New state is required");
+  }
+
+  // Checking if the project exist
+  const existingProject = await Project.findById(currentProjectId);
+
+  if (!existingProject) {
+    throw new ApiError(404, "Project does not exist");
+  }
+
+  // Checking if the user updating the state is the owner
+  if (!existingProject.isOwner(req.user._id.toString())) {
+    throw new ApiError(403, "You are not authorized to update the state");
+  }
+
+  // Checkig if project can be transitioned to the specified state
+  if (!existingProject.canTransitionTo(newState)) {
+    throw new ApiError(409, "Project cannot be transitioned to this state");
+  }
+
+  // Updating the state of the project
+  existingProject.status = newState;
+  existingProject.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Project status updated successfully"));
+});
+
+export { createProject, addProjectMember, removeMember, updateProjectState };
