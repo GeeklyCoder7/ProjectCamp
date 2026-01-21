@@ -17,10 +17,7 @@ const createProject = asyncHandler(async (req, res) => {
     status: "active",
     description: description,
     projectOwner: req.user._id,
-    members: {
-      user: req.user._id,
-      role: "owner",
-    },
+    members: [{ user: req.user._id, role: "owner" }],
   });
 
   return res.status(200).json(
@@ -37,39 +34,11 @@ const createProject = asyncHandler(async (req, res) => {
 
 // Controller for adding a new member to the existing project
 const addProjectMember = asyncHandler(async (req, res) => {
-  const { currentProjectId } = req.params; // will be passed in the url
   const { memberId } = req.body;
-
-  // Validating inputs
-  if (!currentProjectId) {
-    throw new ApiError(400, "Project ID required for adding members");
-  }
+  const { project } = req.project;
 
   if (!memberId) {
     throw new ApiError(400, "New member's ID required");
-  }
-
-  // Checking if the project even exist
-  const existingProject = await Project.findById(currentProjectId);
-
-  if (!existingProject) {
-    throw new ApiError(404, "Project with the specified ID does not exist");
-  }
-
-  // Checking if the member trying to add others is owner of the project (others cannot add new members)
-  if (!existingProject.isOwner(req.user._id.toString())) {
-    throw new ApiError(
-      403,
-      "You are not authorized to add members to this project",
-    );
-  }
-
-  // Checking if member being added is already a part of the project
-  if (existingProject.hasMember(memberId)) {
-    throw new ApiError(
-      409,
-      "The member you are trying to add is already a part of this project",
-    );
   }
 
   // Checking if the DB even contains any user with the received id
@@ -80,12 +49,12 @@ const addProjectMember = asyncHandler(async (req, res) => {
   }
 
   // Finally adding a new member
-  existingProject.members.push({
+  project.members.push({
     user: memberId,
     role: "member",
   });
 
-  await existingProject.save();
+  await project.save();
 
   return res
     .status(200)
@@ -96,6 +65,7 @@ const addProjectMember = asyncHandler(async (req, res) => {
 const removeMember = asyncHandler(async (req, res) => {
   const { currentProjectId } = req.params;
   const { removeMemberId } = req.body;
+  const project = req.project;
 
   // Validating inputs
   if (!currentProjectId) {
@@ -106,34 +76,17 @@ const removeMember = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Member id required");
   }
 
-  // Checking if the project even exist
-  const existingProject = await Project.findById(currentProjectId);
-
-  if (!existingProject) {
-    throw new ApiError(404, "Project does not exist");
-  }
-
-  // Checking if the member even exist in the project
-  if (!existingProject.hasMember(removeMemberId)) {
-    throw new ApiError(404, "Member not present in the project");
-  }
-
-  // Checking if the current member is the owner
-  if (!existingProject.isOwner(req.user._id.toString())) {
-    throw new ApiError(403, "You are not authorized to remove a member");
-  }
-
   // Preventing the owner from removing itself
   if (removeMemberId === req.user._id.toString()) {
     throw new ApiError(400, "Project owner cannot remove himself.");
   }
 
   // Removing the member
-  existingProject.members = existingProject.members.filter(
+  project.members = project.members.filter(
     (member) => member.user.toString() !== removeMemberId,
   );
 
-  await existingProject.save();
+  await project.save();
 
   return res
     .status(200)
@@ -144,6 +97,7 @@ const removeMember = asyncHandler(async (req, res) => {
 const updateProjectState = asyncHandler(async (req, res) => {
   const { currentProjectId } = req.params;
   const { newState } = req.body;
+  const project = req.project;
 
   // Validating inputs
   if (!currentProjectId) {
@@ -154,30 +108,73 @@ const updateProjectState = asyncHandler(async (req, res) => {
     throw new ApiError(400, "New state is required");
   }
 
-  // Checking if the project exist
-  const existingProject = await Project.findById(currentProjectId);
-
-  if (!existingProject) {
-    throw new ApiError(404, "Project does not exist");
-  }
-
-  // Checking if the user updating the state is the owner
-  if (!existingProject.isOwner(req.user._id.toString())) {
-    throw new ApiError(403, "You are not authorized to update the state");
-  }
-
   // Checkig if project can be transitioned to the specified state
-  if (!existingProject.canTransitionTo(newState)) {
+  if (!project.canTransitionTo(newState)) {
     throw new ApiError(409, "Project cannot be transitioned to this state");
   }
 
   // Updating the state of the project
-  existingProject.status = newState;
-  existingProject.save();
+  project.status = newState;
+  project.save();
 
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "Project status updated successfully"));
 });
 
-export { createProject, addProjectMember, removeMember, updateProjectState };
+// Controller for getting the project by id
+const getProjectById = asyncHandler(async (req, res) => {
+  const project = req.project; // Coming from req.project
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, { project: project }),
+      "Project fetched successfully",
+    );
+});
+
+// Controller for getting all the projects for the current user
+const getAllProjects = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.max(parseInt(req.query.limit) || 10, 1);
+  const skip = (page - 1) * limit;
+
+  const projects = await Project.find({
+    "members.user": userId,
+  })
+    .select(
+      "projectName status description projectOwner members createdAt updatedAt",
+    )
+    .skip(skip)
+    .limit(limit)
+    .sort({
+      updatedAt: -1,
+    });
+
+  const totalProjects = await Project.countDocuments({
+    "members.user": userId,
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      projectCount: totalProjects,
+      totalProjects,
+      currentPage: page,
+      totalPages: Math.ceil(totalProjects / limit),
+      limit,
+      projects,
+    }),
+  );
+});
+
+export {
+  createProject,
+  addProjectMember,
+  removeMember,
+  updateProjectState,
+  getProjectById,
+  getAllProjects,
+};
