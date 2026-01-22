@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { ApiError } from "../utils/api-error.js";
 
 const projectMemberScehma = new Schema(
   {
@@ -68,6 +69,13 @@ projectSchema.methods.isOwner = function (userId) {
   );
 };
 
+// Checks if the user can add a member
+projectSchema.methods.addMember = function (userId) {
+  if (this.hasMember(userId)) {
+    throw new ApiError();
+  }
+};
+
 // Checks if the project is active
 projectSchema.methods.isActive = function () {
   return this.status === "active";
@@ -87,6 +95,18 @@ projectSchema.methods.canTransitionTo = function (newStatus) {
   };
 
   return allowedTransitions[this.status]?.includes(newStatus);
+};
+
+// Removes the specified member
+projectSchema.methods.removeMember = function (removeMemberId) {
+  this.members = this.members.filter(
+    (member) => member.user.toString() !== removeMemberId,
+  );
+};
+
+// Returns all the members of the project
+projectSchema.methods.getMembers = function () {
+  return this.members;
 };
 
 export const Project = mongoose.model("Project", projectSchema);

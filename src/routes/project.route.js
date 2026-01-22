@@ -5,6 +5,7 @@ import {
   createProject,
   getAllProjects,
   getProjectById,
+  getProjectMembers,
   removeMember,
   updateProjectState,
 } from "../controllers/project.controller.js";
@@ -50,6 +51,14 @@ projectRouter.get(
   checkProjectExistence,
   checkMembership,
   getProjectById,
+);
+
+projectRouter.get(
+  "/:projectId/getMembers",
+  verifyJWT,
+  checkProjectExistence,
+  checkMembership,
+  getProjectMembers,
 );
 
 export default projectRouter;

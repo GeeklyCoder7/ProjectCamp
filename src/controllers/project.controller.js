@@ -48,6 +48,11 @@ const addProjectMember = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User you are trying to add does not exist");
   }
 
+  // Checking if the member already exist
+  if (project.hasMember(memberId)) {
+    throw new ApiError(409, "Member already part of the project");
+  }
+
   // Finally adding a new member
   project.members.push({
     user: memberId,
@@ -77,14 +82,12 @@ const removeMember = asyncHandler(async (req, res) => {
   }
 
   // Preventing the owner from removing itself
-  if (removeMemberId === req.user._id.toString()) {
+  if (project.isOwner(removeMemberId)) {
     throw new ApiError(400, "Project owner cannot remove himself.");
   }
 
   // Removing the member
-  project.members = project.members.filter(
-    (member) => member.user.toString() !== removeMemberId,
-  );
+  project.removeMember(removeMemberId);
 
   await project.save();
 
@@ -170,6 +173,21 @@ const getAllProjects = asyncHandler(async (req, res) => {
   );
 });
 
+// Controller for getting all the members of the project
+const getProjectMembers = asyncHandler(async (req, res) => {
+  const project = req.project; // Coming from projectExistence middleware
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        members: project.members,
+      },
+      "Members fetched successfully",
+    ),
+  );
+});
+
 export {
   createProject,
   addProjectMember,
@@ -177,4 +195,5 @@ export {
   updateProjectState,
   getProjectById,
   getAllProjects,
+  getProjectMembers,
 };
