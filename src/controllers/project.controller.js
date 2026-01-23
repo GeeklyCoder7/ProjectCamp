@@ -138,7 +138,7 @@ const getProjectById = asyncHandler(async (req, res) => {
 });
 
 // Controller for getting all the projects for the current user
-const getAllProjects = asyncHandler(async (req, res) => {z
+const getAllProjects = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -177,14 +177,14 @@ const getAllProjects = asyncHandler(async (req, res) => {z
 const getProjectMembers = asyncHandler(async (req, res) => {
   const project = await req.project.populate({
     path: "members.user",
-    select: "userName email"
+    select: "userName email",
   }); // Coming from projectExistence middleware
 
   return res.status(200).json(
     new ApiResponse(
       200,
       {
-        members: project.members
+        members: project.members,
       },
       "Members fetched successfully",
     ),

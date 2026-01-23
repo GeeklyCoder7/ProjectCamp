@@ -60,4 +60,34 @@ const checkOwnership = asyncHandler(async (req, res, next) => {
   next();
 });
 
-export { checkMembership, checkProjectExistence, checkOwnership };
+// Generic role-based authorization middlewares
+const requireProjectRoles = (allowedRoles = []) =>
+  asyncHandler(async (req, res, next) => {
+    const project = req.project; // Coming from projectExistence middleware
+
+    if (!project) {
+      throw new ApiError(500, "Project not loaded in the request");
+    }
+
+    const userId = req.user._id;
+
+    // Checking membership
+    const member = project.members.find(
+      (member) => member.user.toString() === userId.toString(),
+    );
+
+    if (!member) {
+      throw new ApiError(403, "You are not member of this project");
+    }
+
+    if (!allowedRoles.includes(member.role)) {
+      throw new ApiError(
+        403,
+        "You do not have permission to perform this action",
+      );
+    }
+
+    next();
+  });
+
+export { checkMembership, checkProjectExistence, checkOwnership, requireProjectRoles };

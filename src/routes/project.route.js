@@ -13,6 +13,7 @@ import {
   checkMembership,
   checkOwnership,
   checkProjectExistence,
+  requireProjectRoles,
 } from "../middlewares/projectAccess.middleware.js";
 
 const projectRouter = Router();
@@ -23,7 +24,7 @@ projectRouter.patch(
   "/addMember/:currentProjectId",
   verifyJWT,
   checkProjectExistence,
-  checkOwnership,
+  requireProjectRoles(["owner"]),
   addProjectMember,
 ); // Used for adding new member to the project
 
@@ -31,7 +32,7 @@ projectRouter.patch(
   "/removeMember/:currentProjectId",
   verifyJWT,
   checkProjectExistence,
-  checkOwnership,
+  requireProjectRoles(["owner"]),
   removeMember,
 ); // Used for removing a member from the project
 
@@ -39,7 +40,7 @@ projectRouter.patch(
   "/updateStatus/:currentProjectId",
   verifyJWT,
   checkProjectExistence,
-  checkOwnership,
+  requireProjectRoles(["owner"]),
   updateProjectState,
 ); // Used for updating the status of the project
 
@@ -49,7 +50,7 @@ projectRouter.get(
   "/:projectId",
   verifyJWT,
   checkProjectExistence,
-  checkMembership,
+  requireProjectRoles(["owner", "member"]),
   getProjectById,
 );
 
@@ -57,7 +58,7 @@ projectRouter.get(
   "/:projectId/getMembers",
   verifyJWT,
   checkProjectExistence,
-  checkMembership,
+  requireProjectRoles(["owner", "member"]),
   getProjectMembers,
 );
 
