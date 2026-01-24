@@ -57,7 +57,7 @@ const projectSchema = new Schema(
 // Checks if the specified user is the member of the curent project
 projectSchema.methods.hasMember = function (userId) {
   return this.members.some(
-    (member) => member.user.toString() === userId.toString(),
+    (member) => member.user._id.toString() === userId.toString(),
   );
 };
 
@@ -107,6 +107,31 @@ projectSchema.methods.removeMember = function (removeMemberId) {
 // Returns all the members of the project
 projectSchema.methods.getMembers = function () {
   return this.members;
+};
+
+// Changes the owner
+projectSchema.methods.changeOwner = function (newOwnerId) {
+  // Checking if current owner and new owner (to be) are both the same
+  if (this.isOwner(newOwnerId)) {
+    throw new ApiError(
+      409,
+      "User is alread the owner of this project"
+    )
+  }
+
+  // Demoting the current owner to "member"
+  this.members.forEach((member) => {
+    if (member.role === "owner") {
+      member.role = "member";
+    }
+  });
+
+  // Promoting the new owner
+  this.members.forEach((member) => {
+    if (member.user.toString() === newOwnerId.toString()) {
+      member.role = "owner";
+    }
+  });
 };
 
 export const Project = mongoose.model("Project", projectSchema);

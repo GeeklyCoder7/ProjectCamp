@@ -3,6 +3,7 @@ import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { Project } from "../models/project.model.js";
 import { User } from "../models/user.models.js";
+import { getUserOrThrow } from "../utils/helpers.js";
 
 // Controller for creating a new project
 const createProject = asyncHandler(async (req, res) => {
@@ -35,21 +36,17 @@ const createProject = asyncHandler(async (req, res) => {
 // Controller for adding a new member to the existing project
 const addProjectMember = asyncHandler(async (req, res) => {
   const { memberId } = req.body;
-  const { project } = req.project;
+  const project = req.project;
 
   if (!memberId) {
     throw new ApiError(400, "New member's ID required");
   }
 
   // Checking if the DB even contains any user with the received id
-  const isInDb = await User.findById(memberId);
-
-  if (!isInDb) {
-    throw new ApiError(404, "User you are trying to add does not exist");
-  }
+  const user = await getUserOrThrow(memberId);
 
   // Checking if the member already exist
-  if (project.hasMember(memberId)) {
+  if (project.hasMember(user._id)) {
     throw new ApiError(409, "Member already part of the project");
   }
 
@@ -191,6 +188,39 @@ const getProjectMembers = asyncHandler(async (req, res) => {
   );
 });
 
+// Controller for transferring project ownership
+const transferOwnership = asyncHandler(async (req, res) => {
+  const project = req.project;
+
+  const { newOwnerId } = req.body;
+
+  // Fetching the user from the DB to check if it exist
+  const newOwner = await getUserOrThrow(newOwnerId);
+
+  // Checking if the newOwner exist as a user and a part of the project
+  if (!project.hasMember(newOwner._id)) {
+    throw new ApiError(
+      statusCode,
+      "Only existing members can be promoted to Owner",
+    );
+  }
+
+  // Changing the owner
+  project.changeOwner(newOwner._id);
+  await project.save();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        oldOwnerId: req.user._id.toString(),
+        newOwnerId: newOwnerId,
+      },
+      "Ownership transferred successfully",
+    ),
+  );
+});
+
 export {
   createProject,
   addProjectMember,
@@ -199,4 +229,5 @@ export {
   getProjectById,
   getAllProjects,
   getProjectMembers,
+  transferOwnership,
 };

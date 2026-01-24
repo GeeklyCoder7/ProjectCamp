@@ -90,4 +90,9 @@ const requireProjectRoles = (allowedRoles = []) =>
     next();
   });
 
-export { checkMembership, checkProjectExistence, checkOwnership, requireProjectRoles };
+export {
+  checkMembership,
+  checkProjectExistence,
+  checkOwnership,
+  requireProjectRoles,
+};

@@ -7,11 +7,10 @@ import {
   getProjectById,
   getProjectMembers,
   removeMember,
+  transferOwnership,
   updateProjectState,
 } from "../controllers/project.controller.js";
 import {
-  checkMembership,
-  checkOwnership,
   checkProjectExistence,
   requireProjectRoles,
 } from "../middlewares/projectAccess.middleware.js";
@@ -61,5 +60,7 @@ projectRouter.get(
   requireProjectRoles(["owner", "member"]),
   getProjectMembers,
 );
+
+projectRouter.patch("/:projectId/transferOwnership", verifyJWT, checkProjectExistence, requireProjectRoles(["owner"]), transferOwnership);
 
 export default projectRouter;
