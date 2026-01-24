@@ -100,7 +100,7 @@ projectSchema.methods.canTransitionTo = function (newStatus) {
 // Removes the specified member
 projectSchema.methods.removeMember = function (removeMemberId) {
   this.members = this.members.filter(
-    (member) => member.user.toString() !== removeMemberId,
+    (member) => member.user.toString() !== removeMemberId.toString(),
   );
 };
 
@@ -113,10 +113,7 @@ projectSchema.methods.getMembers = function () {
 projectSchema.methods.changeOwner = function (newOwnerId) {
   // Checking if current owner and new owner (to be) are both the same
   if (this.isOwner(newOwnerId)) {
-    throw new ApiError(
-      409,
-      "User is alread the owner of this project"
-    )
+    throw new ApiError(409, "User is alread the owner of this project");
   }
 
   // Demoting the current owner to "member"
@@ -132,6 +129,25 @@ projectSchema.methods.changeOwner = function (newOwnerId) {
       member.role = "owner";
     }
   });
+};
+
+// Performs the leave operation for the current user
+projectSchema.methods.leaveProject = function (currentUserId) {
+  // Checking if the user is the member of the project
+  if (!this.hasMember(currentUserId)) {
+    throw new ApiError(403, "User is not the member of the project");
+  }
+
+  // Checking if the user is the owner of the project
+  if (this.isOwner(currentUserId)) {
+    throw new ApiError(
+      409,
+      "Owner cannot leave directly, you must transfer the ownership first",
+    );
+  }
+
+  // Removing the member from the project
+  this.removeMember(currentUserId);
 };
 
 export const Project = mongoose.model("Project", projectSchema);

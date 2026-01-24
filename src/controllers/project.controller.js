@@ -221,6 +221,20 @@ const transferOwnership = asyncHandler(async (req, res) => {
   );
 });
 
+// Controller for leaving from the project: Used by the member and prevents the owner to leave without transferring ownership
+const leaveProject = asyncHandler(async (req, res) => {
+  const project = req.project; // Coming from projectExistence middleware
+  const currentUserId = req.user._id; // Coming from verifyJwt middleware
+
+  // Leaving the project
+  project.leaveProject(currentUserId);
+  await project.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Successfully left the project"));
+});
+
 export {
   createProject,
   addProjectMember,
@@ -230,4 +244,5 @@ export {
   getAllProjects,
   getProjectMembers,
   transferOwnership,
+  leaveProject,
 };
