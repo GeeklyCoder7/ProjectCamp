@@ -2,7 +2,6 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { Project } from "../models/project.model.js";
-import { User } from "../models/user.models.js";
 import { getUserOrThrow } from "../utils/helpers.js";
 
 // Controller for creating a new project
@@ -19,6 +18,12 @@ const createProject = asyncHandler(async (req, res) => {
     description: description,
     projectOwner: req.user._id,
     members: [{ user: req.user._id, role: "owner" }],
+    activities: [
+      {
+        type: "PROJECT_CREATED",
+        performedBy: req.user._id,
+      },
+    ],
   });
 
   return res.status(200).json(
@@ -52,8 +57,17 @@ const addProjectMember = asyncHandler(async (req, res) => {
 
   // Finally adding a new member
   project.members.push({
-    user: memberId,
+    user: user._id,
     role: "member",
+  });
+
+  // Adding the activity log
+  project.addActivityLog({
+    type: "MEMBER_ADDED",
+    performedBy: req.user._id,
+    metadata: {
+      addedUser: user._id,
+    },
   });
 
   await project.save();
@@ -78,13 +92,22 @@ const removeMember = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Member id required");
   }
 
-  // Preventing the owner from removing itself
-  if (project.isOwner(removeMemberId)) {
-    throw new ApiError(400, "Project owner cannot remove himself.");
+  // Checking if the same user is trying to remove himself
+  if (req.user._id.toString() === removeMemberId.toString()) {
+    throw new ApiError(400, "You cannot remove yourself.");
   }
 
   // Removing the member
   project.removeMember(removeMemberId);
+
+  // Adding the activity
+  project.addActivityLog({
+    type: "MEMBER_REMOVED",
+    performedBy: req.user._id,
+    metadata: {
+      removedMember: removeMemberId,
+    },
+  });
 
   await project.save();
 
@@ -113,8 +136,21 @@ const updateProjectState = asyncHandler(async (req, res) => {
     throw new ApiError(409, "Project cannot be transitioned to this state");
   }
 
-  // Updating the state of the project
+  // Storing old status for metadata
+  const oldStatus = project.status;
+
+  // Updating the project status
   project.status = newState;
+
+  // Adding the activity log
+  project.addActivityLog({
+    type: "STATUS_UPDATED",
+    performedBy: req.user._id,
+    metadata: {
+      oldStatus: oldStatus,
+      newStatus: newState,
+    },
+  });
   project.save();
 
   return res
@@ -228,6 +264,12 @@ const leaveProject = asyncHandler(async (req, res) => {
 
   // Leaving the project
   project.leaveProject(currentUserId);
+
+  // Adding the activity log
+  project.addActivityLog({
+    type: "MEMBER_LEFT",
+    performedBy: currentUserId,
+  });
   await project.save();
 
   return res

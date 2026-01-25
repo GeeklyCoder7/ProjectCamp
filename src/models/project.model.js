@@ -23,6 +23,37 @@ const projectMemberScehma = new Schema(
   },
 );
 
+const projectActivitySchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: [
+        "PROJECT_CREATED",
+        "MEMBER_ADDED",
+        "MEMBER_REMOVED",
+        "STATUS_UPDATED",
+        "MEMBER_LEFT",
+        "OWNERSHIP_TRANSFERRED",
+      ],
+      required: true,
+    },
+    performedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false },
+);
+
 const projectSchema = new Schema(
   {
     projectName: {
@@ -46,6 +77,10 @@ const projectSchema = new Schema(
     },
     members: {
       type: [projectMemberScehma],
+      default: [],
+    },
+    activities: {
+      type: [projectActivitySchema],
       default: [],
     },
   },
@@ -99,6 +134,13 @@ projectSchema.methods.canTransitionTo = function (newStatus) {
 
 // Removes the specified member
 projectSchema.methods.removeMember = function (removeMemberId) {
+  if (this.isOwner(removeMemberId)) {
+    throw new ApiError(
+      400,
+      "Owner cannot remove himself"
+    )
+  }
+
   this.members = this.members.filter(
     (member) => member.user.toString() !== removeMemberId.toString(),
   );
@@ -148,6 +190,19 @@ projectSchema.methods.leaveProject = function (currentUserId) {
 
   // Removing the member from the project
   this.removeMember(currentUserId);
+};
+
+// Adds the activity to the project logs
+projectSchema.methods.addActivityLog = function ({
+  type,
+  performedBy,
+  metadata = {},
+}) {
+  this.activities.push({
+    type,
+    performedBy,
+    metadata,
+  });
 };
 
 export const Project = mongoose.model("Project", projectSchema);
