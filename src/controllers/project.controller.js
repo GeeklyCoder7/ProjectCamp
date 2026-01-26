@@ -3,6 +3,7 @@ import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { Project } from "../models/project.model.js";
 import { getUserOrThrow } from "../utils/helpers.js";
+import { User } from "../models/user.models.js";
 
 // Controller for creating a new project
 const createProject = asyncHandler(async (req, res) => {
@@ -22,6 +23,11 @@ const createProject = asyncHandler(async (req, res) => {
       {
         type: "PROJECT_CREATED",
         performedBy: req.user._id,
+        performedBySnapshot: {
+          _id: req.user._id,
+          userName: req.user.userName,
+          email: req.user.email,
+        },
       },
     ],
   });
@@ -65,8 +71,17 @@ const addProjectMember = asyncHandler(async (req, res) => {
   project.addActivityLog({
     type: "MEMBER_ADDED",
     performedBy: req.user._id,
+    performedBySnapshot: {
+      _id: req.user._id,
+      userName: req.user.userName,
+      email: req.user.email,
+    },
     metadata: {
-      addedUser: user._id,
+      addedMember: {
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+      },
     },
   });
 
@@ -100,12 +115,20 @@ const removeMember = asyncHandler(async (req, res) => {
   // Removing the member
   project.removeMember(removeMemberId);
 
+  // Fetching removed member details for snapshot purpose
+  const removedMember =
+    await User.findById(removeMemberId).select("_id userName email");
+
   // Adding the activity
   project.addActivityLog({
     type: "MEMBER_REMOVED",
     performedBy: req.user._id,
     metadata: {
-      removedMember: removeMemberId,
+      removedMember: {
+        _id: removedMember._id,
+        userName: removedMember.userName,
+        email: removedMember.email,
+      },
     },
   });
 
@@ -146,6 +169,11 @@ const updateProjectState = asyncHandler(async (req, res) => {
   project.addActivityLog({
     type: "STATUS_UPDATED",
     performedBy: req.user._id,
+    performedBySnapshot: {
+      _id: req.user._id,
+      userName: req.user.userName,
+      email: req.user.email,
+    },
     metadata: {
       oldStatus: oldStatus,
       newStatus: newState,
@@ -236,13 +264,37 @@ const transferOwnership = asyncHandler(async (req, res) => {
   // Checking if the newOwner exist as a user and a part of the project
   if (!project.hasMember(newOwner._id)) {
     throw new ApiError(
-      statusCode,
+      403,
       "Only existing members can be promoted to Owner",
     );
   }
 
   // Changing the owner
   project.changeOwner(newOwner._id);
+
+  // Adding activity logs
+  project.addActivityLog({
+    type: "OWNERSHIP_TRANSFERRED",
+    performedBy: req.user._id,
+    performedBySnapshot: {
+      _id: req.user._id,
+      userName: req.user.userName,
+      email: req.user.email,
+    },
+    metadata: {
+      oldOwner: {
+        _id: req.user._id,
+        userName: req.user.userName,
+        email: req.user.email,
+      },
+      newOwner: {
+        _id: newOwner._id,
+        userName: newOwner.userName,
+        email: newOwner.email,
+      },
+    },
+  });
+
   await project.save();
 
   return res.status(200).json(
@@ -269,12 +321,61 @@ const leaveProject = asyncHandler(async (req, res) => {
   project.addActivityLog({
     type: "MEMBER_LEFT",
     performedBy: currentUserId,
+    performedBySnapshot: {
+      _id: req.user._id,
+      userName: req.user.userName,
+      email: req.user.email,
+    },
   });
   await project.save();
 
   return res
     .status(200)
     .json(new ApiResponse(200, null, "Successfully left the project"));
+});
+
+// Controller for getting the project activities
+const getProjectActivities = asyncHandler(async (req, res) => {
+  const project = req.project; // Coming from projectExistence middleware
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.max(parseInt(req.query.limit) || 10, 1);
+
+  // Fetching the logs
+  const rawLogs = project.getActivityLogs();
+
+  // Calculations for pagination
+  const totalLogs = rawLogs.length;
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+
+  // Formatting the logs
+  const paginatedLogs = rawLogs.slice(startIndex, endIndex).map((log) => ({
+    type: log.type,
+    performedBy: log.performedBySnapshot
+      ? {
+          _id: log.performedBySnapshot._id,
+          userName: log.performedBySnapshot.userName,
+          email: log.performedBySnapshot.email,
+        }
+      : {},
+    metadata: log.metadata ?? {},
+    createdAt: log.createdAt,
+  }));
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        totalLogs,
+        currentPage: page,
+        totalPages: Math.ceil(totalLogs / limit),
+        limit,
+        activities: paginatedLogs,
+      },
+      "Activity logs fetched successfully",
+    ),
+  );
 });
 
 export {
@@ -287,4 +388,5 @@ export {
   getProjectMembers,
   transferOwnership,
   leaveProject,
+  getProjectActivities,
 };

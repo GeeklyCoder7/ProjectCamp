@@ -4,6 +4,7 @@ import {
   addProjectMember,
   createProject,
   getAllProjects,
+  getProjectActivities,
   getProjectById,
   getProjectMembers,
   leaveProject,
@@ -53,7 +54,7 @@ projectRouter.get(
   checkProjectExistence,
   requireProjectRoles(["owner", "member"]),
   getProjectById,
-);
+); // Used for fetching the project by id
 
 projectRouter.get(
   "/:projectId/getMembers",
@@ -61,7 +62,7 @@ projectRouter.get(
   checkProjectExistence,
   requireProjectRoles(["owner", "member"]),
   getProjectMembers,
-);
+); // Used for fetching members of the project
 
 projectRouter.patch(
   "/:projectId/transferOwnership",
@@ -69,7 +70,7 @@ projectRouter.patch(
   checkProjectExistence,
   requireProjectRoles(["owner"]),
   transferOwnership,
-);
+); // Used to transfer the ownership
 
 projectRouter.patch(
   "/:projectId/leaveProject",
@@ -77,6 +78,14 @@ projectRouter.patch(
   checkProjectExistence,
   checkMembership,
   leaveProject,
-);
+); // Used by the member for leaving the project
+
+projectRouter.get(
+  "/:projectId/activities",
+  verifyJWT,
+  checkProjectExistence,
+  requireProjectRoles(["owner"]),
+  getProjectActivities,
+); // Used for fetching the project activities
 
 export default projectRouter;

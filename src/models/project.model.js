@@ -42,6 +42,12 @@ const projectActivitySchema = new Schema(
       ref: "User",
       required: true,
     },
+    performedBySnapshot: {
+      // Sapshot of the user that performed this activity: Used for display formatting
+      _id: mongoose.Schema.Types.ObjectId,
+      userName: String,
+      email: String,
+    },
     metadata: {
       type: Schema.Types.Mixed,
       default: {},
@@ -135,10 +141,7 @@ projectSchema.methods.canTransitionTo = function (newStatus) {
 // Removes the specified member
 projectSchema.methods.removeMember = function (removeMemberId) {
   if (this.isOwner(removeMemberId)) {
-    throw new ApiError(
-      400,
-      "Owner cannot remove himself"
-    )
+    throw new ApiError(400, "Owner cannot remove himself");
   }
 
   this.members = this.members.filter(
@@ -196,13 +199,20 @@ projectSchema.methods.leaveProject = function (currentUserId) {
 projectSchema.methods.addActivityLog = function ({
   type,
   performedBy,
+  performedBySnapshot,
   metadata = {},
 }) {
   this.activities.push({
     type,
     performedBy,
+    performedBySnapshot,
     metadata,
   });
+};
+
+// Returns the project activity logs
+projectSchema.methods.getActivityLogs = function () {
+  return this.activities;
 };
 
 export const Project = mongoose.model("Project", projectSchema);
