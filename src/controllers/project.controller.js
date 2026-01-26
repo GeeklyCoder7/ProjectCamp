@@ -263,10 +263,7 @@ const transferOwnership = asyncHandler(async (req, res) => {
 
   // Checking if the newOwner exist as a user and a part of the project
   if (!project.hasMember(newOwner._id)) {
-    throw new ApiError(
-      403,
-      "Only existing members can be promoted to Owner",
-    );
+    throw new ApiError(403, "Only existing members can be promoted to Owner");
   }
 
   // Changing the owner
@@ -349,8 +346,13 @@ const getProjectActivities = asyncHandler(async (req, res) => {
   const startIndex = (page - 1) * limit;
   const endIndex = startIndex + limit;
 
-  // Formatting the logs
-  const paginatedLogs = rawLogs.slice(startIndex, endIndex).map((log) => ({
+  // Sorting logs: First sort then paginate
+  const sortedLogs = [...rawLogs].sort(
+    (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+  );
+
+  // Formatting the logs along with pagination
+  const paginatedLogs = sortedLogs.slice(startIndex, endIndex).map((log) => ({
     type: log.type,
     performedBy: log.performedBySnapshot
       ? {
@@ -358,7 +360,7 @@ const getProjectActivities = asyncHandler(async (req, res) => {
           userName: log.performedBySnapshot.userName,
           email: log.performedBySnapshot.email,
         }
-      : {},
+      : null,
     metadata: log.metadata ?? {},
     createdAt: log.createdAt,
   }));
