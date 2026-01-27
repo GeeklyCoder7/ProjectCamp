@@ -334,12 +334,13 @@ const leaveProject = asyncHandler(async (req, res) => {
 // Controller for getting the project activities
 const getProjectActivities = asyncHandler(async (req, res) => {
   const project = req.project; // Coming from projectExistence middleware
+  const type = req.query.type?.split(",").map((t) => t.trim()); // Coming from request parameters
 
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.max(parseInt(req.query.limit) || 10, 1);
 
   // Fetching the logs
-  const rawLogs = project.getActivityLogs();
+  const rawLogs = project.getActivityLogs(type);
 
   // Calculations for pagination
   const totalLogs = rawLogs.length;

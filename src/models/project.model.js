@@ -211,8 +211,12 @@ projectSchema.methods.addActivityLog = function ({
 };
 
 // Returns the project activity logs
-projectSchema.methods.getActivityLogs = function () {
-  return this.activities;
+projectSchema.methods.getActivityLogs = function (type = []) {
+  if (!type || type === undefined || type === null) {
+    return this.activities;
+  } else {
+    return this.activities.filter((activity) => type.includes(activity.type));
+  }
 };
 
 export const Project = mongoose.model("Project", projectSchema);
