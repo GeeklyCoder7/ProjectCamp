@@ -10,26 +10,13 @@ const createProject = asyncHandler(async (req, res) => {
   const { projectName, description } = req.body;
 
   if (!projectName) {
-    return new ApiError(400, "Project name is requried");
+    throw new ApiError(400, "Project name is requried");
   }
 
-  const newProject = await Project.create({
-    projectName: projectName,
-    status: "active",
-    description: description,
-    projectOwner: req.user._id,
-    members: [{ user: req.user._id, role: "owner" }],
-    activities: [
-      {
-        type: "PROJECT_CREATED",
-        performedBy: req.user._id,
-        performedBySnapshot: {
-          _id: req.user._id,
-          userName: req.user.userName,
-          email: req.user.email,
-        },
-      },
-    ],
+  const newProject = await Project.createProject({
+    owner: req.user,
+    projectName,
+    description,
   });
 
   return res.status(200).json(
@@ -56,33 +43,28 @@ const addProjectMember = asyncHandler(async (req, res) => {
   // Checking if the DB even contains any user with the received id
   const user = await getUserOrThrow(memberId);
 
-  // Checking if the member already exist
-  if (project.hasMember(user._id)) {
-    throw new ApiError(409, "Member already part of the project");
-  }
+  // Creating activity-log related values
+  const performedBy = req.user._id;
 
-  // Finally adding a new member
-  project.members.push({
-    user: user._id,
-    role: "member",
-  });
+  const performedBySnapshot = {
+    _id: req.user._id,
+    userName: req.user.userName,
+    email: req.user.email,
+  };
 
-  // Adding the activity log
-  project.addActivityLog({
-    type: "MEMBER_ADDED",
-    performedBy: req.user._id,
-    performedBySnapshot: {
-      _id: req.user._id,
-      userName: req.user.userName,
-      email: req.user.email,
+  const metadata = {
+    addedMember: {
+      _id: user._id,
+      userName: user.userName,
+      email: user.email,
     },
-    metadata: {
-      addedMember: {
-        _id: user._id,
-        userName: user.userName,
-        email: user.email,
-      },
-    },
+  };
+
+  project.addMember({
+    userId: user._id,
+    performedBy,
+    performedBySnapshot,
+    metadata,
   });
 
   await project.save();
@@ -112,37 +94,48 @@ const removeMember = asyncHandler(async (req, res) => {
     throw new ApiError(400, "You cannot remove yourself.");
   }
 
-  // Removing the member
-  project.removeMember(removeMemberId);
-
   // Fetching removed member details for snapshot purpose
   const removedMember =
     await User.findById(removeMemberId).select("_id userName email");
 
-  // Adding the activity
-  project.addActivityLog({
-    type: "MEMBER_REMOVED",
-    performedBy: req.user._id,
-    metadata: {
-      removedMember: {
-        _id: removedMember._id,
-        userName: removedMember.userName,
-        email: removedMember.email,
-      },
+  if (!removeMember) {
+    throw new ApiError(404, "User not found");
+  }
+
+  // Creating values for activity logs
+  const performedBy = req.user._id;
+  const performedBySnapshot = {
+    _id: req.user._id,
+    userName: req.user.userName,
+    email: req.user.email,
+  };
+  const metadata = {
+    removedMember: {
+      _id: removedMember._id,
+      userName: removedMember.userName,
+      email: removedMember.email,
     },
+  };
+
+  // Removing the member
+  project.removeMember({
+    removeMemberId: removeMember._id,
+    performedBy,
+    performedBySnapshot,
+    metadata,
   });
 
   await project.save();
 
   return res
     .status(200)
-    .json(new ApiResponse(200, {}, "Member removed successfully"));
+    .json(new ApiResponse(200, null, "Member removed successfully"));
 });
 
 // Controller for updating project state
 const updateProjectState = asyncHandler(async (req, res) => {
   const { currentProjectId } = req.params;
-  const { newState } = req.body;
+  const { newStatus } = req.body;
   const project = req.project;
 
   // Validating inputs
@@ -150,36 +143,34 @@ const updateProjectState = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Project id is required");
   }
 
-  if (!newState) {
+  if (!newStatus) {
     throw new ApiError(400, "New state is required");
-  }
-
-  // Checkig if project can be transitioned to the specified state
-  if (!project.canTransitionTo(newState)) {
-    throw new ApiError(409, "Project cannot be transitioned to this state");
   }
 
   // Storing old status for metadata
   const oldStatus = project.status;
 
-  // Updating the project status
-  project.status = newState;
+  // Creating values for activity logs
+  const performedBy = req.user._id;
+  const performedBySnapshot = {
+    _id: req.user._id,
+    userName: req.user.userName,
+    email: req.user.email,
+  };
+  const metadata = {
+    oldStatus: oldStatus,
+    newStatus: newStatus,
+  };
 
-  // Adding the activity log
-  project.addActivityLog({
-    type: "STATUS_UPDATED",
-    performedBy: req.user._id,
-    performedBySnapshot: {
-      _id: req.user._id,
-      userName: req.user.userName,
-      email: req.user.email,
-    },
-    metadata: {
-      oldStatus: oldStatus,
-      newStatus: newState,
-    },
+  // Updating the status
+  project.updateStatus({
+    newStatus,
+    performedBy,
+    performedBySnapshot,
+    metadata,
   });
-  project.save();
+
+  await project.save();
 
   return res
     .status(200)
@@ -261,35 +252,34 @@ const transferOwnership = asyncHandler(async (req, res) => {
   // Fetching the user from the DB to check if it exist
   const newOwner = await getUserOrThrow(newOwnerId);
 
-  // Checking if the newOwner exist as a user and a part of the project
-  if (!project.hasMember(newOwner._id)) {
-    throw new ApiError(403, "Only existing members can be promoted to Owner");
-  }
+  // Creating values for activity-logs
+  const performedBy = req.user._id;
 
-  // Changing the owner
-  project.changeOwner(newOwner._id);
+  const performedBySnapshot = {
+    _id: req.user._id,
+    userName: req.user.userName,
+    email: req.user.email,
+  };
 
-  // Adding activity logs
-  project.addActivityLog({
-    type: "OWNERSHIP_TRANSFERRED",
-    performedBy: req.user._id,
-    performedBySnapshot: {
+  const metadata = {
+    oldOwner: {
       _id: req.user._id,
       userName: req.user.userName,
       email: req.user.email,
     },
-    metadata: {
-      oldOwner: {
-        _id: req.user._id,
-        userName: req.user.userName,
-        email: req.user.email,
-      },
-      newOwner: {
-        _id: newOwner._id,
-        userName: newOwner.userName,
-        email: newOwner.email,
-      },
+    newOwner: {
+      _id: newOwner._id,
+      userName: newOwner.userName,
+      email: newOwner.email,
     },
+  };
+
+  // Changing the owner
+  project.changeOwner({
+    newOwnerId,
+    performedBy,
+    performedBySnapshot,
+    metadata,
   });
 
   await project.save();
@@ -311,19 +301,22 @@ const leaveProject = asyncHandler(async (req, res) => {
   const project = req.project; // Coming from projectExistence middleware
   const currentUserId = req.user._id; // Coming from verifyJwt middleware
 
-  // Leaving the project
-  project.leaveProject(currentUserId);
+  // Preparing values for adding activity-logs
+  const performedBy = currentUserId;
 
-  // Adding the activity log
-  project.addActivityLog({
-    type: "MEMBER_LEFT",
-    performedBy: currentUserId,
-    performedBySnapshot: {
-      _id: req.user._id,
-      userName: req.user.userName,
-      email: req.user.email,
-    },
+  const performedBySnapshot = {
+    _id: req.user._id,
+    userName: req.user.userName,
+    email: req.user.email,
+  };
+
+  // Leaving the project
+  project.leaveProject({
+    currentUserId,
+    performedBy,
+    performedBySnapshot,
   });
+
   await project.save();
 
   return res
