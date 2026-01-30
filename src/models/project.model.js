@@ -154,6 +154,10 @@ projectSchema.methods.addMember = function ({
   performedBySnapshot,
   metadata,
 }) {
+  if (!this.isOwner(performedBy)) {
+    throw new ApiError(403, "Only owners can add new members");
+  }
+
   if (this.hasMember(userId)) {
     throw new ApiError(409, "Member already exists");
   }
@@ -199,9 +203,21 @@ projectSchema.methods.removeMember = function ({
   performedBySnapshot,
   metadata,
 }) {
+  // Checking if the owner is trying to remove himself
   if (this.isOwner(removeMemberId)) {
     throw new ApiError(400, "Owner cannot remove himself");
   }
+
+  // Checking if the member is the part of the project (only existing members can be removed)
+  if (!this.hasMember(removeMemberId)) {
+    throw new ApiError(404, "User is not part of the project");
+  }
+
+  // Checking if ther performer is the owner (only owners can remove the members)
+  if (!this.isOwner(performedBy)) {
+    throw new ApiError(403, "Only owners can remove the members");
+  }
+
   this._removeMemberInternal(removeMemberId);
 
   this.addActivityLog({
@@ -224,6 +240,11 @@ projectSchema.methods.updateStatus = function ({
   performedBySnapshot,
   metadata,
 }) {
+  // Checking if the performer is the owner (only owners can update the project status)
+  if (!this.isOwner(performedBy)) {
+    throw new ApiError(403, "Only owners can update the project status");
+  }
+
   // Checkig if project can be transitioned to the specified state
   if (!this.canTransitionTo(newStatus)) {
     throw new ApiError(409, "Project cannot be transitioned to this state");
@@ -248,7 +269,7 @@ projectSchema.methods.changeOwner = function ({
 }) {
   // Checking if current owner and new owner (to be) are both the same
   if (this.isOwner(newOwnerId)) {
-    throw new ApiError(409, "User is alread the owner of this project");
+    throw new ApiError(409, "User is already the owner of this project");
   }
 
   // Checking if the newOwner exist as a user and a part of the project
@@ -325,13 +346,69 @@ projectSchema.methods.addActivityLog = function ({
   });
 };
 
-// Returns the project activity logs
-projectSchema.methods.getActivityLogs = function (type) {
-  if (!type || type === undefined || type === null) {
+// Returns the project activity logs (non-paginated)
+projectSchema.methods.getActivityLogs = function ({ types, from, to } = {}) {
+  let filteredActivities = this.activities;
+
+  // No filtering is required
+  if (!types?.length && !from && !to) {
     return this.activities;
-  } else {
-    return this.activities.filter((activity) => type.includes(activity.type));
   }
+
+  // Filtering based on types
+  if (types?.length) {
+    filteredActivities = filteredActivities.filter((activity) =>
+      types.includes(activity.type),
+    );
+  }
+
+  // Filtering by date range
+  if (from) {
+    filteredActivities = filteredActivities.filter(
+      (activity) => activity.createdAt >= from,
+    );
+  }
+
+  if (to) {
+    filteredActivities = filteredActivities.filter(
+      (activity) => activity.createdAt <= to,
+    );
+  }
+
+  return filteredActivities;
+};
+
+// Returns the paginated activity logs with sorting
+projectSchema.methods.getActivitiesPaginated = function ({
+  types,
+  from,
+  to,
+  page = 1,
+  limit = 10,
+  sort = "desc",
+}) {
+  const activities = this.getActivityLogs({
+    types,
+    from,
+    to,
+  });
+
+  const sortedActivities = [...activities].sort((a, b) =>
+    sort === "asc"
+      ? new Date(a.createdAt) - new Date(b.createdAt)
+      : new Date(b.createdAt) - new Date(a.createdAt),
+  );
+
+  const start = (page - 1) * limit;
+
+  const paginatedActivities = sortedActivities.slice(start, start + limit);
+
+  return {
+    totalLength: activities.length,
+    page,
+    limit,
+    activities: paginatedActivities,
+  };
 };
 
 // Only removes the member: Used by different methods that require member removal with distint operations

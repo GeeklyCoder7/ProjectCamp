@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { Project } from "../models/project.model.js";
-import { getUserOrThrow } from "../utils/helpers.js";
+import { checkAndParseDate, getUserOrThrow } from "../utils/helpers.js";
 import { User } from "../models/user.models.js";
 
 // Controller for creating a new project
@@ -111,7 +111,7 @@ const removeMember = asyncHandler(async (req, res) => {
   };
   const metadata = {
     removedMember: {
-      _id: removedMember._id,
+      _id: removeMemberId,
       userName: removedMember.userName,
       email: removedMember.email,
     },
@@ -119,7 +119,7 @@ const removeMember = asyncHandler(async (req, res) => {
 
   // Removing the member
   project.removeMember({
-    removeMemberId: removeMember._id,
+    removeMemberId: removeMemberId,
     performedBy,
     performedBySnapshot,
     metadata,
@@ -328,46 +328,38 @@ const leaveProject = asyncHandler(async (req, res) => {
 const getProjectActivities = asyncHandler(async (req, res) => {
   const project = req.project; // Coming from projectExistence middleware
   const type = req.query.type?.split(",").map((t) => t.trim()); // Coming from request parameters
+  const sort = req.query.sort;
+  const from = checkAndParseDate(req.params.from); // Converting the date string to Date object for comparision and filtering
+  const to = checkAndParseDate(req.params.to);
 
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.max(parseInt(req.query.limit) || 10, 1);
 
-  // Fetching the logs
-  const rawLogs = project.getActivityLogs(type);
+  const { activities, totalLength } = project.getActivitiesPaginated({
+    type,
+    from,
+    to,
+    page,
+    limit,
+    sort,
+  });
 
-  // Calculations for pagination
-  const totalLogs = rawLogs.length;
-  const startIndex = (page - 1) * limit;
-  const endIndex = startIndex + limit;
-
-  // Sorting logs: First sort then paginate
-  const sortedLogs = [...rawLogs].sort(
-    (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
-  );
-
-  // Formatting the logs along with pagination
-  const paginatedLogs = sortedLogs.slice(startIndex, endIndex).map((log) => ({
-    type: log.type,
-    performedBy: log.performedBySnapshot
-      ? {
-          _id: log.performedBySnapshot._id,
-          userName: log.performedBySnapshot.userName,
-          email: log.performedBySnapshot.email,
-        }
-      : null,
-    metadata: log.metadata ?? {},
-    createdAt: log.createdAt,
+  const formattedActivities = activities.map((activity) => ({
+    type: activity.type,
+    performedBy: activity.performedBySnapshot,
+    metadata: activity.metadata ?? null,
+    createdAt: activity.createdAt,
   }));
 
   return res.status(200).json(
     new ApiResponse(
       200,
       {
-        totalLogs,
+        totalLength,
         currentPage: page,
-        totalPages: Math.ceil(totalLogs / limit),
+        totalPages: Math.ceil(totalLength / limit),
         limit,
-        activities: paginatedLogs,
+        activities: formattedActivities,
       },
       "Activity logs fetched successfully",
     ),
