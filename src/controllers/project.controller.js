@@ -329,8 +329,8 @@ const getProjectActivities = asyncHandler(async (req, res) => {
   const project = req.project; // Coming from projectExistence middleware
   const type = req.query.type?.split(",").map((t) => t.trim()); // Coming from request parameters
   const sort = req.query.sort;
-  const from = checkAndParseDate(req.params.from); // Converting the date string to Date object for comparision and filtering
-  const to = checkAndParseDate(req.params.to);
+  const from = checkAndParseDate(req.params.from, "from"); // Converting the date string to Date object for comparision and filtering
+  const to = checkAndParseDate(req.params.to, "to", true);
 
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.max(parseInt(req.query.limit) || 10, 1);

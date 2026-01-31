@@ -13,7 +13,7 @@ const getUserOrThrow = async function (userId) {
 };
 
 // Checks if the passed date is in the correct format: "YYYY-MM-DD"
-const checkAndParseDate = (dateStr, fieldName) => {
+const checkAndParseDate = (dateStr, fieldName, isEndDate = false) => {
   // If not provided, that means no filtering
   if (!dateStr) return null;
 
@@ -30,6 +30,11 @@ const checkAndParseDate = (dateStr, fieldName) => {
   // Validating actual date value
   if (Number.isNaN(date.getTime())) {
     throw new ApiError(400, `Invalid ${fieldName} value`);
+  }
+
+  // Converting the date to the end of the day is it's the "to" or "end" date
+  if (isEndDate) {
+    date = date.setDate(date.getDate() + 1); // Adding one day extra
   }
 
   return date;
