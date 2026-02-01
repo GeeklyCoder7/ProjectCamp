@@ -90,9 +90,21 @@ const requireProjectRoles = (allowedRoles = []) =>
     next();
   });
 
+// Checks if the project status
+const ensureIsActive = asyncHandler(async (req, res, next) => {
+  const project = req.project; // Coming from existenceMiddleware since it will always be called before this middleware
+
+  if (!project.isActive()) {
+    throw new ApiError(403, "Project is not active");
+  }
+
+  next()
+});
+
 export {
   checkMembership,
   checkProjectExistence,
   checkOwnership,
   requireProjectRoles,
+  ensureIsActive,
 };

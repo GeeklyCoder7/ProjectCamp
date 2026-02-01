@@ -40,4 +40,16 @@ const checkAndParseDate = (dateStr, fieldName, isEndDate = false) => {
   return date;
 };
 
-export { getUserOrThrow, checkAndParseDate };
+// Fetches user by email or throw the error if not exists
+const getUserByEmailOrThrow = async function (email) {
+  // Trying to fetch the user
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return user;
+};
+
+export { getUserOrThrow, checkAndParseDate, getUserByEmailOrThrow };

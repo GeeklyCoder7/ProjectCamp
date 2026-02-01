@@ -13,3 +13,5 @@ export const TaskStatusEnum = {
 };
 
 export const AvailableTaskStatuses = Object.values(TaskStatusEnum);
+
+export const ProjectInvitationExpiryLimit = Number(process.env.PROJECT_INVITATION_EXPIRY) || 7;
