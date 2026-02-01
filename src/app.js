@@ -26,10 +26,12 @@ import healthCheckRouter from "./routes/healthcheck.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import { adminRouter } from "./routes/admin.routes.js";
 import projectRouter from "./routes/project.route.js";
+import invitationRouter from "./routes/invitation.routes.js";
 app.use("/api/v1/healthcheck", healthCheckRouter); // Health check route: Returns the state of the API
 app.use("/api/v1/users", authRouter); // Used for user related routes
 app.use("/api/v1/admin", adminRouter); // Used for admin related routes
 app.use("/api/v1/projects", projectRouter); // Used for project management related routes
+app.use("/api/v1/invitations", invitationRouter); // Used for invitations realted routes
 
 app.get("/", (req, res) => {
   res.send({ status: "Ok" });

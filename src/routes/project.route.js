@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import {
+  acceptInvitation,
   addProjectMember,
   createProject,
   getAllProjects,
@@ -98,16 +99,6 @@ projectRouter.get(
   checkProjectExistence,
   requireProjectRoles(["owner"]),
   getProjectActivities,
-);
-
-// Used for sending the project invitation
-projectRouter.post(
-  "/:projectId/invite",
-  verifyJWT,
-  checkProjectExistence,
-  ensureIsActive,
-  requireProjectRoles(["owner"]),
-  sendInvitation,
 );
 
 export default projectRouter;

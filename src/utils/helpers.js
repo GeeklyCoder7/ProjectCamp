@@ -1,3 +1,5 @@
+import { ProjectInvitation } from "../models/invitation.model.js";
+import { Project } from "../models/project.model.js";
 import { User } from "../models/user.models.js";
 import { ApiError } from "./api-error.js";
 
@@ -52,4 +54,32 @@ const getUserByEmailOrThrow = async function (email) {
   return user;
 };
 
-export { getUserOrThrow, checkAndParseDate, getUserByEmailOrThrow };
+// Fetches the invitation or throws the error if not exists
+const getInvitationOrThrow = async function (invitationId) {
+  const invitation = await ProjectInvitation.findById(invitationId);
+
+  if (!invitation) {
+    throw new ApiError(404, "Invitation not found");
+  }
+
+  return invitation;
+};
+
+// Fetches the project or throws the error if not exists
+const getProjectOrThrow = async function (projectId) {
+  const project = await Project.findById(projectId);
+
+  if (!project) {
+    throw new ApiError(404, "Project does not exists");
+  }
+
+  return project;
+};
+
+export {
+  getUserOrThrow,
+  checkAndParseDate,
+  getUserByEmailOrThrow,
+  getInvitationOrThrow,
+  getProjectOrThrow,
+};

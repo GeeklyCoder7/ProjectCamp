@@ -4,6 +4,7 @@ import { ApiResponse } from "../utils/api-response.js";
 import { Project } from "../models/project.model.js";
 import {
   checkAndParseDate,
+  getInvitationOrThrow,
   getUserByEmailOrThrow,
   getUserOrThrow,
 } from "../utils/helpers.js";
@@ -428,6 +429,47 @@ const sendInvitation = asyncHandler(async (req, res) => {
   );
 });
 
+// Controller for accepting the invitation
+const acceptInvitation = asyncHandler(async (req, res) => {
+  const { invitationId } = req.params;
+
+  // Validating inputs
+  if (!invitationId) {
+    throw new ApiError(400, "Invitation id is required for accpeting");
+  }
+
+  // Fetching the invitation
+  const invitation = await getInvitationOrThrow(invitationId);
+
+  // Preparing snapshot for activity logging
+  const performedBy = req.user._id;
+
+  const performedBySnapshot = {
+    _id: req.user._id,
+    userName: req.user.userName,
+    email: req.user.email,
+  };
+
+  // Accepting the invitation
+  await invitation.acceptInvitation({
+    projectId: invitation.projectId,
+    userId: invitation.invitedUser,
+    performedBy,
+    performedBySnapshot,
+  });
+
+  // Sending the response
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        projectId: invitation.projectId,
+      },
+      "Invitation accepted, you have joined the project successfully.",
+    ),
+  );
+});
+
 export {
   createProject,
   addProjectMember,
@@ -440,4 +482,5 @@ export {
   leaveProject,
   getProjectActivities,
   sendInvitation,
+  acceptInvitation,
 };
