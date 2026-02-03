@@ -1,8 +1,13 @@
 import mongoose, { Schema } from "mongoose";
-import { Project } from "../models/project.model.js";
+import { Project } from "./project.model.js";
 import { getProjectOrThrow } from "../utils/helpers.js";
 import { ApiError } from "../utils/api-error.js";
 
+/**
+ * @typedef {import("mongoose").Document & {
+ *   invitedUser: import("mongoose").Types.ObjectId
+ * }} InvitationDocument
+ */
 const invitationSchema = new Schema(
   {
     projectId: {
@@ -88,12 +93,9 @@ invitationSchema.methods.acceptInvitation = async function ({
   // Fetching the project to check for member existence
   const project = await getProjectOrThrow(projectId);
 
-  if (project.hasMember(userId)) {
-    throw new ApiError(409, "You are already a member of this project");
-  }
-
   // Checking if the invitation can be accepted: (must be pending, must belong to the user trying to accept, must not be expired). If "canAcceptInvitation()" does not throw any error, that means we can add this user and update the invitation status
-  const result = this.canAcceptInvitation(userId);
+
+  await this.canAcceptInvitation({ userId, project });
 
   // Adding the member
   await project.addMember({
@@ -115,14 +117,21 @@ invitationSchema.methods.acceptInvitation = async function ({
 };
 
 // Checks whether the invitation can be accepted
-invitationSchema.methods.canAcceptInvitation = function (userId) {
+invitationSchema.methods.canAcceptInvitation = async function ({
+  userId,
+  project,
+}) {
+  if (project.hasMember(userId)) {
+    throw new ApiError(409, "You are already a member of this project");
+  }
+
   // Checking if the invitation is pending (must be pending)
   if (this.invitationStatus !== "pending") {
     throw new ApiError(400, "Invitation is not longer active");
   }
 
   // Checking if the invitation belongs to the current user
-  if (this.invitedUser !== userId) {
+  if (!this.invitedUser.equals(userId)) {
     throw new ApiError(403, "This invitation doesn't belong to you");
   }
 
@@ -132,6 +141,59 @@ invitationSchema.methods.canAcceptInvitation = function (userId) {
   }
 
   return true;
+};
+
+// Rejects the invitation along with updating the status
+invitationSchema.methods.rejectInvitation = async function (userId) {
+  // Checking if the user can perform rejection
+  this.canRejectInvitation(userId);
+
+  // Updating the status
+  this.invitationStatus = "rejected";
+  await this.save();
+};
+
+/**
+ * @this {InvitationDocument}
+ */
+// Checks if the invitation can be rejected
+invitationSchema.methods.canRejectInvitation = function (userId) {
+  // Checking if the invitation even belongs to the user
+  if (!this.invitedUser.equals(userId)) {
+    throw new ApiError(403, "This invitation does not belong to you.");
+  }
+
+  // Checking if invitation status is not pending: Only pending invitations can be rejected
+  if (this.invitationStatus !== "pending") {
+    throw new ApiError(400, "Invitation is not active");
+  }
+
+  // Checking if the invitation has expired
+  if (this.expiresAt < new Date()) {
+    throw new ApiError(410, "The invitation has already expired.");
+  }
+  return true;
+};
+
+// Updates the status of the invitation by checking can it even be updated to the desired state.
+invitationSchema.methods.updateStatus = function (newStatus) {
+  // Allowed transitions
+  const allowedStatusTransitions = {
+    pending: ["accepted", "rejected", "expired"],
+  };
+
+  const currentStatus = this.invitationStatus;
+
+  if (!allowedStatusTransitions[currentStatus]) {
+    throw new ApiError(400, "Invitation status can no longer be changed");
+  }
+
+  if (!allowedStatusTransitions[currentStatus].includes(newStatus)) {
+    throw new ApiError(400, "Cannot transition to this status");
+  }
+
+  // Changing the status
+  this.invitationStatus = newStatus;
 };
 
 export const ProjectInvitation = mongoose.model(

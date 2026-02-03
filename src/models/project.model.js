@@ -1,6 +1,5 @@
 import mongoose, { Schema } from "mongoose";
 import { ApiError } from "../utils/api-error.js";
-import { asyncHandler } from "../utils/async-handler.js";
 
 const projectMemberScehma = new Schema(
   {
@@ -154,8 +153,12 @@ projectSchema.methods.addMember = function ({
   performedBySnapshot,
   metadata,
 }) {
-  if (!this.isOwner(performedBy)) {
-    throw new ApiError(403, "Only owners can add new members");
+  const source = metadata.source; // Used for determining if the addition is from invitation or what
+
+  if (source !== "INVITATION") {
+    if (!this.isOwner(performedBy)) {
+      throw new ApiError(403, "Only owners can add new members");
+    }
   }
 
   if (this.hasMember(userId)) {

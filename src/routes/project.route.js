@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import {
-  acceptInvitation,
   addProjectMember,
   createProject,
   getAllProjects,
@@ -10,14 +9,12 @@ import {
   getProjectMembers,
   leaveProject,
   removeMember,
-  sendInvitation,
   transferOwnership,
   updateProjectState,
 } from "../controllers/project.controller.js";
 import {
   checkMembership,
   checkProjectExistence,
-  ensureIsActive,
   requireProjectRoles,
 } from "../middlewares/projectAccess.middleware.js";
 

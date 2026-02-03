@@ -4,13 +4,9 @@ import { ApiResponse } from "../utils/api-response.js";
 import { Project } from "../models/project.model.js";
 import {
   checkAndParseDate,
-  getInvitationOrThrow,
-  getUserByEmailOrThrow,
   getUserOrThrow,
 } from "../utils/helpers.js";
 import { User } from "../models/user.models.js";
-import { ProjectInvitation } from "../models/invitation.model.js";
-import { ProjectInvitationExpiryLimit } from "../utils/constants.js";
 
 // Controller for creating a new project
 const createProject = asyncHandler(async (req, res) => {
@@ -373,102 +369,6 @@ const getProjectActivities = asyncHandler(async (req, res) => {
   );
 });
 
-// Controller for sending invitation to the user
-const sendInvitation = asyncHandler(async (req, res) => {
-  const project = req.project; // Coming from projectExistenceMiddleware
-  const { email } = req.body; // Email of the user to whom this invite will be sent
-
-  // Validating inputs
-  if (!email) {
-    throw new ApiError(400, "Email required for inviting the member");
-  }
-
-  // Fetching the user by email
-  const invitedUser = await getUserByEmailOrThrow(email);
-
-  // Checking if the invited user is already a member of the current project
-  if (project.hasMember(invitedUser._id)) {
-    throw new ApiError(409, "User is already a member of the project");
-  }
-
-  // Checking if the user can be invited
-  const canInvite = await ProjectInvitation.canInviteUser({
-    projectId: project._id,
-    userId: invitedUser._id,
-  });
-
-  if (!canInvite) {
-    throw new ApiError(400, "Cannot invite this user");
-  }
-
-  // Calculating the expiry date
-  const expiresAt = new Date(); // First take the current date
-  expiresAt.setDate(expiresAt.getDate() + ProjectInvitationExpiryLimit); // Adding the expiry limit to the current date
-
-  // Creating invitation
-  const newInvitation = await ProjectInvitation.create({
-    projectId: project._id,
-    invitedUser: invitedUser._id,
-    invitedBy: req.user._id,
-    role: "member",
-    invitationStatus: "pending",
-    expiresAt,
-  });
-
-  // Sending the response
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        invitationId: newInvitation._id,
-        invitedUser: invitedUser._id,
-        expiresAt: expiresAt,
-      },
-      "Invitation sent successfully.",
-    ),
-  );
-});
-
-// Controller for accepting the invitation
-const acceptInvitation = asyncHandler(async (req, res) => {
-  const { invitationId } = req.params;
-
-  // Validating inputs
-  if (!invitationId) {
-    throw new ApiError(400, "Invitation id is required for accpeting");
-  }
-
-  // Fetching the invitation
-  const invitation = await getInvitationOrThrow(invitationId);
-
-  // Preparing snapshot for activity logging
-  const performedBy = req.user._id;
-
-  const performedBySnapshot = {
-    _id: req.user._id,
-    userName: req.user.userName,
-    email: req.user.email,
-  };
-
-  // Accepting the invitation
-  await invitation.acceptInvitation({
-    projectId: invitation.projectId,
-    userId: invitation.invitedUser,
-    performedBy,
-    performedBySnapshot,
-  });
-
-  // Sending the response
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        projectId: invitation.projectId,
-      },
-      "Invitation accepted, you have joined the project successfully.",
-    ),
-  );
-});
 
 export {
   createProject,
@@ -481,6 +381,4 @@ export {
   transferOwnership,
   leaveProject,
   getProjectActivities,
-  sendInvitation,
-  acceptInvitation,
 };
