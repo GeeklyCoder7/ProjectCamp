@@ -2,6 +2,7 @@ import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import {
   acceptInvitation,
+  getAllInvitations,
   rejectInvitation,
   sendInvitation,
 } from "../controllers/invitation.controllers.js";
@@ -44,5 +45,8 @@ invitationRouter.patch(
   checkInvitationExpiry,
   rejectInvitation,
 );
+
+// Used for fetching all the pending invitations of the user
+invitationRouter.get("/getAllInvitations", verifyJWT, getAllInvitations);
 
 export default invitationRouter;

@@ -116,6 +116,8 @@ invitationSchema.methods.acceptInvitation = async function ({
   await this.save();
 };
 
+const ACTIVE_INVITATION_STATUSES = ["pending", "expired"];
+
 // Checks whether the invitation can be accepted
 invitationSchema.methods.canAcceptInvitation = async function ({
   userId,
@@ -156,6 +158,7 @@ invitationSchema.methods.rejectInvitation = async function (userId) {
 /**
  * @this {InvitationDocument}
  */
+
 // Checks if the invitation can be rejected
 invitationSchema.methods.canRejectInvitation = function (userId) {
   // Checking if the invitation even belongs to the user
@@ -194,6 +197,42 @@ invitationSchema.methods.updateStatus = function (newStatus) {
 
   // Changing the status
   this.invitationStatus = newStatus;
+};
+
+// Returns all the pending and expired invitations for the current user
+invitationSchema.statics.getInvitationsRaw = async function (userId) {
+  // Checking if the user id is provided or not
+  if (!userId) {
+    throw new ApiError(400, "User Id is required for fetching invitations");
+  }
+
+  // Fetching the invitations
+  const invitations = await this.find({
+    invitedUser: userId,
+    invitationStatus: { $in: ACTIVE_INVITATION_STATUSES },
+  });
+
+  return invitations;
+};
+
+// Fetches the invitations from the getInvitationsRaw() method and returns it by implementing pagination
+invitationSchema.statics.getInvitationsPaginated = async function ({
+  userId,
+  page = 1,
+  limit = 5,
+}) {
+  const rawInvitations = await this.getInvitationsRaw(userId);
+
+  const start = (page - 1) * limit;
+
+  const paginatedInvitations = rawInvitations.slice(start, start + limit);
+
+  return {
+    totalLength: rawInvitations.length,
+    page,
+    limit,
+    invitations: paginatedInvitations,
+  };
 };
 
 export const ProjectInvitation = mongoose.model(

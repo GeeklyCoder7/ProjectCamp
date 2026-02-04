@@ -4,6 +4,9 @@ import cookieParser from "cookie-parser";
 
 const app = express();
 
+// Starting backgroun jobs
+startInvitationExpiryJob();
+
 // Express configuration
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
@@ -27,6 +30,7 @@ import authRouter from "./routes/auth.routes.js";
 import { adminRouter } from "./routes/admin.routes.js";
 import projectRouter from "./routes/project.route.js";
 import invitationRouter from "./routes/invitation.routes.js";
+import { startInvitationExpiryJob } from "../jobs/invitation-expiry.jobs.js";
 app.use("/api/v1/healthcheck", healthCheckRouter); // Health check route: Returns the state of the API
 app.use("/api/v1/users", authRouter); // Used for user related routes
 app.use("/api/v1/admin", adminRouter); // Used for admin related routes

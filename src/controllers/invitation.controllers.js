@@ -1,10 +1,7 @@
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
-import {
-  getInvitationOrThrow,
-  getUserByEmailOrThrow,
-} from "../utils/helpers.js";
+import { getUserByEmailOrThrow } from "../utils/helpers.js";
 import { ProjectInvitation } from "../models/invitation.model.js";
 import { ProjectInvitationExpiryLimit } from "../utils/constants.js";
 
@@ -109,4 +106,35 @@ const rejectInvitation = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, null, "Invitation rejected successfully"));
 });
 
-export { sendInvitation, acceptInvitation, rejectInvitation };
+// Returns all the received invitations for the current user along with pagination
+const getAllInvitations = asyncHandler(async (req, res) => {
+  const user = req.user; // Coming from verifyJwt middleware
+  const page = req.query.page ?? 1;
+  const limit = req.query.limit ?? 5;
+
+  // Fetching the paginated invitations
+  const paginatedInvitations = await ProjectInvitation.getInvitationsPaginated({
+    userId: user._id,
+    page,
+    limit,
+  });
+
+  const noInvitations = paginatedInvitations.length === 0;
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        noInvitations ? null : paginatedInvitations,
+        noInvitations ? "No pending invitations" : null,
+      ),
+    );
+});
+
+export {
+  sendInvitation,
+  acceptInvitation,
+  rejectInvitation,
+  getAllInvitations,
+};
