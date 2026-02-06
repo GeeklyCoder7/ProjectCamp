@@ -1,4 +1,4 @@
-import { ProjectInvitation } from "../models/invitation.model.js";
+import { ProjectInvitation } from "../models/invitation.models.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 

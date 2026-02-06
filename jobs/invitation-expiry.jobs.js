@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { ProjectInvitation } from "../src/models/invitation.model.js";
+import { ProjectInvitation } from "../src/models/invitation.models.js";
 
 // This is a background job that runs every 10 minutes and checks for any pending invitations which are expired, and also marks them as expired
 export const startInvitationExpiryJob = () => {

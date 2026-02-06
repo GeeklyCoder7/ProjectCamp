@@ -11,7 +11,7 @@ import {
   removeMember,
   transferOwnership,
   updateProjectState,
-} from "../controllers/project.controller.js";
+} from "../controllers/project.controllers.js";
 import {
   checkMembership,
   checkProjectExistence,

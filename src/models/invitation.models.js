@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { Project } from "./project.model.js";
+import { Project } from "./project.models.js";
 import { getProjectOrThrow } from "../utils/helpers.js";
 import { ApiError } from "../utils/api-error.js";
 

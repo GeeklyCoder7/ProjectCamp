@@ -1,4 +1,4 @@
-import { Project } from "../models/project.model.js";
+import { Project } from "../models/project.models.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 

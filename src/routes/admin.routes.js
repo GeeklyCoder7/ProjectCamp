@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
-import { authorizeRole } from "../middlewares/authorizeRole.middleware.js";
+import { authorizeRole } from "../middlewares/authorizeRole.middlewares.js";
 import {
   blockUser,
   changeUserRole,

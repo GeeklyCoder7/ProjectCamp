@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
-import { Project } from "../models/project.model.js";
+import { Project } from "../models/project.models.js";
 import {
   checkAndParseDate,
   getUserOrThrow,

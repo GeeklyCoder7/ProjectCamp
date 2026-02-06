@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { getUserByEmailOrThrow } from "../utils/helpers.js";
-import { ProjectInvitation } from "../models/invitation.model.js";
+import { ProjectInvitation } from "../models/invitation.models.js";
 import { ProjectInvitationExpiryLimit } from "../utils/constants.js";
 
 // Controller for sending invitation to the user

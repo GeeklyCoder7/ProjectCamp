@@ -31,11 +31,13 @@ import { adminRouter } from "./routes/admin.routes.js";
 import projectRouter from "./routes/project.route.js";
 import invitationRouter from "./routes/invitation.routes.js";
 import { startInvitationExpiryJob } from "../jobs/invitation-expiry.jobs.js";
+import taskRouter from "./routes/task.routes.js";
 app.use("/api/v1/healthcheck", healthCheckRouter); // Health check route: Returns the state of the API
 app.use("/api/v1/users", authRouter); // Used for user related routes
 app.use("/api/v1/admin", adminRouter); // Used for admin related routes
 app.use("/api/v1/projects", projectRouter); // Used for project management related routes
 app.use("/api/v1/invitations", invitationRouter); // Used for invitations realted routes
+app.use("/api/v1/tasks", taskRouter); // Used for task related routes
 
 app.get("/", (req, res) => {
   res.send({ status: "Ok" });
