@@ -235,6 +235,7 @@ invitationSchema.statics.getInvitationsPaginated = async function ({
   };
 };
 
+
 export const ProjectInvitation = mongoose.model(
   "ProjectInvitation",
   invitationSchema,

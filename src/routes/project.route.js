@@ -4,6 +4,7 @@ import {
   addProjectMember,
   createProject,
   getAllProjects,
+  getAllTasks,
   getProjectActivities,
   getProjectById,
   getProjectMembers,
@@ -96,6 +97,15 @@ projectRouter.get(
   checkProjectExistence,
   requireProjectRoles(["owner"]),
   getProjectActivities,
+);
+
+// Used to fetch all the tasks of the project
+projectRouter.get(
+  "/:projectId/getAllTasks",
+  verifyJWT,
+  checkProjectExistence,
+  requireProjectRoles(["member", "owner", "admin"]), // Any member or person inside the project can view, no other outsider is allowed
+  getAllTasks,
 );
 
 export default projectRouter;

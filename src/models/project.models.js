@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { ApiError } from "../utils/api-error.js";
+import { Task } from "./tasks.models.js";
 
 const projectMemberScehma = new Schema(
   {
@@ -419,6 +420,42 @@ projectSchema.methods._removeMemberInternal = function (removeMemberId) {
   this.members = this.members.filter(
     (member) => member.user.toString() !== removeMemberId.toString(),
   );
+};
+
+// Returns all the tasks of the project in raw format
+projectSchema.methods.getAllTasksRaw = async function () {
+  const rawTasks = await Task.find({
+    projectId: this._id,
+  });
+
+  return rawTasks;
+};
+
+// Returns all the of the project in paginated format
+projectSchema.methods.getAllTasksPaginated = async function ({
+  page = 1,
+  limit = 5,
+  sort = "dsc",
+}) {
+  const start = (page - 1) * limit;
+  const end = start + limit;
+
+  const rawTasks = await this.getAllTasksRaw();
+
+  const sortedTasks = [...rawTasks].sort((a, b) =>
+    sort === "asc"
+      ? new Date(a.createdAt) - new Date(b.createdAt)
+      : new Date(b.createdAt) - new Date(a.createdAt),
+  );
+
+  const paginatedTasks = sortedTasks.slice(start, end);
+
+  return {
+    totalLength: rawTasks.length,
+    page,
+    limit,
+    tasks: paginatedTasks,
+  };
 };
 
 export const Project = mongoose.model("Project", projectSchema);

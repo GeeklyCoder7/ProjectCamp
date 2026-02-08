@@ -46,14 +46,53 @@ const taskSchema = new Schema(
       default: "todo",
       index: true,
     },
+    taskComments: {
+      type: [taskCommentSchema],
+      default: [],
+    }
   },
   {
     timestamps: true,
   },
 );
 
+const taskCommentSchema = new Schema(
+  {
+    commentedBy: {
+      type: mongoose.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    mentions: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    content: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true },
+);
+
 // This method assigns a new member to the task
 taskSchema.methods.assignMember = async function ({
+  currentUserId,
+  assignMemberId,
+  project,
+}) {
+  // Checking if member can be assigned (as per the business rules)
+  this.canAssignMember({ currentUserId, assignMemberId, project });
+
+  // Assigning the member
+  this.assignedTo.push(assignMemberId);
+  await this.save();
+};
+
+// Checks if the member can be assigned to the task
+taskSchema.methods.canAssignMember = function ({
   currentUserId,
   assignMemberId,
   project,
@@ -79,9 +118,82 @@ taskSchema.methods.assignMember = async function ({
     throw new ApiError(409, "The member is already assigned to this task");
   }
 
-  // Assigning the member
-  this.assignedTo.push(assignMemberId);
+  // Checking if the task status is completed: Members cannot be assigned to completed tasks
+  if (this.taskStatus === "completed") {
+    throw new ApiError(403, "Task is completed, cannot assign more members");
+  }
+
+  return true;
+};
+
+// Unassigns (removes) the member from the task
+taskSchema.methods.unassignMember = async function ({
+  currentUserId,
+  unassignMemberId,
+  project,
+}) {
+  this.canUnassignMember({ currentUserId, unassignMemberId, project });
+
+  // Unassigning / removing the member
+  this.assignedTo = this.assignedTo.filter(
+    (memberId) => !memberId.equals(unassignMemberId),
+  );
+
   await this.save();
 };
 
+// Checks if the member can be unassigned or removed from the task
+taskSchema.methods.canUnassignMember = function ({
+  currentUserId,
+  unassignMemberId,
+  project,
+}) {
+  if (!project.isOwner(currentUserId)) {
+    throw new ApiError(
+      403,
+      "You are not authorized to remove a member from the task. Only owners can perform this action",
+    );
+  }
+
+  // The member we are trying to remove must be the part of the task at the first place
+  if (!this.assignedTo.includes(unassignMemberId)) {
+    throw new ApiError(
+      404,
+      "The member you are trying to remove is not assigned to this task",
+    );
+  }
+
+  return true;
+};
+
+// Updates the task status
+taskSchema.methods.updateStatus = async function ({
+  newStatus,
+  currentMemberId,
+}) {
+  // Denotes what are the allowed transitions from the current transition
+  const allowedStatusTransitions = {
+    todo: ["in_progress", "completed"],
+    in_progress: ["completed"],
+    completed: [],
+  };
+  console.log(`User id being passed: ${currentMemberId}`);
+
+  // Checking if the member performing this action even assigned to the current task
+  if (!this.assignedTo.includes(currentMemberId)) {
+    throw new ApiError(403, "You are not assigned to this task");
+  }
+
+  // Checking if the transition is allowed from the current status to the new status
+  if (!allowedStatusTransitions[this.taskStatus].includes(newStatus)) {
+    throw new ApiError(
+      403,
+      `You are not allowed to transition to '${newStatus}'`,
+    );
+  }
+
+  // Updating the status
+  this.taskStatus = newStatus;
+  await this.save();
+};
 export const Task = mongoose.model("Task", taskSchema);

@@ -2,10 +2,7 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { Project } from "../models/project.models.js";
-import {
-  checkAndParseDate,
-  getUserOrThrow,
-} from "../utils/helpers.js";
+import { checkAndParseDate, getUserOrThrow } from "../utils/helpers.js";
 import { User } from "../models/user.models.js";
 
 // Controller for creating a new project
@@ -369,6 +366,25 @@ const getProjectActivities = asyncHandler(async (req, res) => {
   );
 });
 
+// Returns all the tasks of the project in paginated format
+const getAllTasks = asyncHandler(async (req, res) => {
+  const project = req.project;
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.max(parseInt(req.query.limit) || 10, 1);
+  const sort = req.query.sort ?? "asc";
+
+  const { totalLength, tasks } = await project.getAllTasksPaginated({page, limit, sort});
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      totalLength,
+      totalPages: Math.ceil(totalLength / limit),
+      currentPage: page,
+      tasks,
+    }),
+  );
+});
 
 export {
   createProject,
@@ -381,4 +397,5 @@ export {
   transferOwnership,
   leaveProject,
   getProjectActivities,
+  getAllTasks,
 };

@@ -5,7 +5,12 @@ import {
   ensureIsActive,
   requireProjectRoles,
 } from "../middlewares/projectAccess.middleware.js";
-import { addTask, assignTask } from "../controllers/task.controllers.js";
+import {
+  addTask,
+  assignTask,
+  unassignMember,
+  updateTaskStatus,
+} from "../controllers/task.controllers.js";
 import { checkTaskExistence } from "../middlewares/task.middlewares.js";
 
 const taskRouter = Router();
@@ -22,13 +27,26 @@ taskRouter.post(
 
 // Used for assigning members to the existing tasks
 taskRouter.patch(
-  "/:projectId/:taskId/assignMembers",
+  "/assignMembers/:taskId",
   verifyJWT,
-  checkProjectExistence,
-  ensureIsActive,
-  requireProjectRoles(["owner", "admin"]),
   checkTaskExistence,
   assignTask,
 );
+
+// Used removing the assigned members
+taskRouter.patch(
+  "/unassignMember/:taskId",
+  verifyJWT,
+  checkTaskExistence,
+  unassignMember,
+);
+
+// Used for updating the task status
+taskRouter.patch(
+  "/:taskId/status",
+  verifyJWT,
+  checkTaskExistence,
+  updateTaskStatus,
+)
 
 export default taskRouter;
