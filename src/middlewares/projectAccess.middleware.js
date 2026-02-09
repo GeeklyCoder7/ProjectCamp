@@ -98,7 +98,7 @@ const ensureIsActive = asyncHandler(async (req, res, next) => {
     throw new ApiError(403, "Project is not active");
   }
 
-  next()
+  next();
 });
 
 export {

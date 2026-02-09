@@ -265,7 +265,7 @@ projectSchema.methods.updateStatus = function ({
 };
 
 // Changes the owner
-projectSchema.methods.changeOwner = function ({
+projectSchema.methods.changeOwner = async function ({
   newOwnerId,
   performedBy,
   performedBySnapshot,
@@ -292,6 +292,7 @@ projectSchema.methods.changeOwner = function ({
   this.members.forEach((member) => {
     if (member.user.toString() === newOwnerId.toString()) {
       member.role = "owner";
+      this.projectOwner = member.user
     }
   });
 
@@ -301,6 +302,8 @@ projectSchema.methods.changeOwner = function ({
     performedBySnapshot,
     metadata,
   });
+
+  await this.save();
 };
 
 // Performs the leave operation for the current user

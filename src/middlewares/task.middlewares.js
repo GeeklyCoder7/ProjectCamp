@@ -17,6 +17,19 @@ const checkTaskExistence = asyncHandler(async (req, res, next) => {
   next();
 });
 
-export {
-    checkTaskExistence
-}
+// Single middleware that grants access to task operations based on the action received
+const canTask = (action) =>
+  asyncHandler(async (req, res, next) => {
+    const task = req.task;
+    const currentUserId = req.user._id;
+
+    const allowed = await task.can(action, currentUserId);
+
+    if (!allowed) {
+      throw new ApiError(403, "You are not allowed to perform this action");
+    }
+
+    next();
+  });
+
+export { checkTaskExistence, canTask };

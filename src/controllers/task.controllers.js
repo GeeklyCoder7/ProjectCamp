@@ -2,8 +2,7 @@ import { Task } from "../models/tasks.models.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiResponse } from "../utils/api-response.js";
-import { getProjectOrThrow, getUserOrThrow } from "../utils/helpers.js";
-import { Project } from "../models/project.models.js";
+import { getProjectOrThrow } from "../utils/helpers.js";
 
 // Adds a new task for the project
 const addTask = asyncHandler(async (req, res) => {
@@ -70,7 +69,6 @@ const assignTask = asyncHandler(async (req, res) => {
 // Unassigns the members of the tasks
 const unassignMember = asyncHandler(async (req, res) => {
   const task = req.task;
-  const currentUser = req.user;
 
   const { unassignMemberId } = req.body;
 
@@ -78,12 +76,8 @@ const unassignMember = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Member id is required to unassign");
   }
 
-  const project = await getProjectOrThrow(task.projectId);
-
   await task.unassignMember({
-    currentUserId: currentUser._id,
     unassignMemberId,
-    project,
   });
 
   return res
@@ -114,4 +108,55 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
   );
 });
 
-export { addTask, assignTask, unassignMember, updateTaskStatus };
+// Adds a new comment to the task
+const addComment = asyncHandler(async (req, res) => {
+  const task = req.task;
+  const { content } = req.body;
+
+  if (!content) {
+    throw new ApiError(400, "Content is required");
+  }
+
+  await task.addComment({ commentedById: req.user._id, content });
+
+  return res
+    .status(201)
+    .json(new ApiResponse(201, null, "Comment posted successfully"));
+});
+
+// Returns all the comments in the task with pagination
+const getTaskComments = asyncHandler(async (req, res) => {
+  const task = req.task;
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.max(parseInt(req.query.limit) || 5, 1);
+  const sort = req.query.sort ?? "asc";
+
+  const { totalComments, paginatedComments } = await task.getComments({
+    page,
+    limit,
+    sort,
+  });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        totalComments,
+        totalPages: Math.ceil(totalComments / limit),
+        page,
+        comments: paginatedComments,
+      },
+      "Comments fetched successfully",
+    ),
+  );
+});
+
+export {
+  addTask,
+  assignTask,
+  unassignMember,
+  updateTaskStatus,
+  addComment,
+  getTaskComments,
+};

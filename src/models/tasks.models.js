@@ -1,5 +1,27 @@
 import mongoose, { Schema } from "mongoose";
 import { ApiError } from "../utils/api-error.js";
+import { getProjectOrThrow } from "../utils/helpers.js";
+
+const taskCommentSchema = new Schema(
+  {
+    commentedBy: {
+      type: mongoose.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    mentions: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    content: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true },
+);
 
 const taskSchema = new Schema(
   {
@@ -46,36 +68,58 @@ const taskSchema = new Schema(
       default: "todo",
       index: true,
     },
-    taskComments: {
+    comments: {
       type: [taskCommentSchema],
       default: [],
-    }
+    },
   },
   {
     timestamps: true,
   },
 );
 
-const taskCommentSchema = new Schema(
-  {
-    commentedBy: {
-      type: mongoose.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    mentions: [
-      {
-        type: mongoose.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    content: {
-      type: String,
-      required: true,
-    },
-  },
-  { timestamps: true },
-);
+/** UTILITY METHODS */
+
+// Returns true if the task is active i.e. not completed yet
+taskSchema.methods.isActive = function () {
+  return this.taskStatus === "todo" || this.taskStatus === "in_progress";
+};
+
+// A generic method that serves as a single source of truth for granting access to different actions in the task document
+taskSchema.methods.can = async function (action, currentUserId) {
+  const project = await getProjectOrThrow(this.projectId);
+
+  const isAssignee = this.assignedTo.includes(currentUserId);
+  const isOwner = project.isOwner(currentUserId);
+
+  switch (action) {
+    case "view_comments":
+      return isAssignee || isOwner;
+
+    case "add_comment":
+      if (!this.isActive()) {
+        throw new ApiError(409, "Task is not active");
+      }
+      return isAssignee;
+
+    case "view_comments":
+      return isAssignee || isOwner;
+
+    case "update_status":
+      return isAssignee;
+
+    case "assign_members":
+      if (!this.isActive()) {
+        throw new ApiError(409, "Task is not active");
+      }
+      return isOwner;
+    case "unassign_members":
+      return isOwner;
+
+    default:
+      throw new ApiError(400, `Unknown task permission: ${action}`);
+  }
+};
 
 // This method assigns a new member to the task
 taskSchema.methods.assignMember = async function ({
@@ -92,47 +136,18 @@ taskSchema.methods.assignMember = async function ({
 };
 
 // Checks if the member can be assigned to the task
-taskSchema.methods.canAssignMember = function ({
-  currentUserId,
-  assignMemberId,
-  project,
-}) {
-  // Checking if the member we are trying to assign is even the member of the project? Only existing members can be assigned to a task
-  if (!project.hasMember(assignMemberId)) {
-    throw new ApiError(
-      422,
-      "The user you are trying to assign is not the member of this project",
-    );
-  }
-
-  // Checking if the current user is the owner of the project: Only owners or admins can assign member to a task
-  if (!project.isOwner(currentUserId)) {
-    throw new ApiError(
-      403,
-      "Only owners or admins can assign members to the task",
-    );
-  }
-
+taskSchema.methods.canAssignMember = function ({ assignMemberId }) {
   // Checking if the member we are trying to assign is already assigned to task in the current project
   if (this.assignedTo.includes(assignMemberId)) {
     throw new ApiError(409, "The member is already assigned to this task");
-  }
-
-  // Checking if the task status is completed: Members cannot be assigned to completed tasks
-  if (this.taskStatus === "completed") {
-    throw new ApiError(403, "Task is completed, cannot assign more members");
   }
 
   return true;
 };
 
 // Unassigns (removes) the member from the task
-taskSchema.methods.unassignMember = async function ({
-  currentUserId,
-  unassignMemberId,
-  project,
-}) {
-  this.canUnassignMember({ currentUserId, unassignMemberId, project });
+taskSchema.methods.unassignMember = async function ({ unassignMemberId }) {
+  this.canUnassignMember(unassignMemberId);
 
   // Unassigning / removing the member
   this.assignedTo = this.assignedTo.filter(
@@ -142,28 +157,11 @@ taskSchema.methods.unassignMember = async function ({
   await this.save();
 };
 
-// Checks if the member can be unassigned or removed from the task
-taskSchema.methods.canUnassignMember = function ({
-  currentUserId,
-  unassignMemberId,
-  project,
-}) {
-  if (!project.isOwner(currentUserId)) {
-    throw new ApiError(
-      403,
-      "You are not authorized to remove a member from the task. Only owners can perform this action",
-    );
-  }
-
-  // The member we are trying to remove must be the part of the task at the first place
+// Checks if the member can be assigned
+taskSchema.methods.canUnassignMember = function (unassignMemberId) {
   if (!this.assignedTo.includes(unassignMemberId)) {
-    throw new ApiError(
-      404,
-      "The member you are trying to remove is not assigned to this task",
-    );
+    throw new ApiError(400, "Member is not even assigned");
   }
-
-  return true;
 };
 
 // Updates the task status
@@ -179,11 +177,6 @@ taskSchema.methods.updateStatus = async function ({
   };
   console.log(`User id being passed: ${currentMemberId}`);
 
-  // Checking if the member performing this action even assigned to the current task
-  if (!this.assignedTo.includes(currentMemberId)) {
-    throw new ApiError(403, "You are not assigned to this task");
-  }
-
   // Checking if the transition is allowed from the current status to the new status
   if (!allowedStatusTransitions[this.taskStatus].includes(newStatus)) {
     throw new ApiError(
@@ -196,4 +189,45 @@ taskSchema.methods.updateStatus = async function ({
   this.taskStatus = newStatus;
   await this.save();
 };
+
+// Adds a comment to the task
+taskSchema.methods.addComment = async function ({
+  commentedById,
+  content,
+  mentions,
+}) {
+  // Adding the comment
+  this.comments.push({
+    commentedBy: commentedById,
+    mentions: mentions ?? null,
+    content,
+  });
+
+  await this.save();
+};
+
+// Returns the task comments in paginated format
+taskSchema.methods.getComments = async function ({
+  page = 1,
+  limit = 10,
+  sort = "dsc",
+}) {
+  const rawComments = this.comments;
+  const start = (page - 1) * limit;
+  const end = start + limit;
+
+  const sortedComments = [...rawComments].sort((a, b) =>
+    sort === "asc"
+      ? new Date(a.createdAt) - new Date(b.createdAt)
+      : new Date(b.createdAt) - new Date(a.createdAt),
+  );
+
+  const paginatedComments = sortedComments.slice(start, end);
+
+  return {
+    totalComments: rawComments.length,
+    paginatedComments,
+  };
+};
+
 export const Task = mongoose.model("Task", taskSchema);

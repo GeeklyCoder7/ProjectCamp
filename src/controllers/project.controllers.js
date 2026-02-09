@@ -275,14 +275,12 @@ const transferOwnership = asyncHandler(async (req, res) => {
   };
 
   // Changing the owner
-  project.changeOwner({
+  await project.changeOwner({
     newOwnerId,
     performedBy,
     performedBySnapshot,
     metadata,
   });
-
-  await project.save();
 
   return res.status(200).json(
     new ApiResponse(

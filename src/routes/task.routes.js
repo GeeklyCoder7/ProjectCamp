@@ -6,12 +6,17 @@ import {
   requireProjectRoles,
 } from "../middlewares/projectAccess.middleware.js";
 import {
+  addComment,
   addTask,
   assignTask,
+  getTaskComments,
   unassignMember,
   updateTaskStatus,
 } from "../controllers/task.controllers.js";
-import { checkTaskExistence } from "../middlewares/task.middlewares.js";
+import {
+  canTask,
+  checkTaskExistence,
+} from "../middlewares/task.middlewares.js";
 
 const taskRouter = Router();
 
@@ -30,6 +35,7 @@ taskRouter.patch(
   "/assignMembers/:taskId",
   verifyJWT,
   checkTaskExistence,
+  canTask("assign_members"),
   assignTask,
 );
 
@@ -38,6 +44,7 @@ taskRouter.patch(
   "/unassignMember/:taskId",
   verifyJWT,
   checkTaskExistence,
+  canTask("unassign_members"),
   unassignMember,
 );
 
@@ -46,7 +53,24 @@ taskRouter.patch(
   "/:taskId/status",
   verifyJWT,
   checkTaskExistence,
+  canTask("update_status"),
   updateTaskStatus,
-)
+);
+
+taskRouter.post(
+  "/:taskId/comments",
+  verifyJWT,
+  checkTaskExistence,
+  canTask("add_comment"),
+  addComment,
+);
+
+taskRouter.get(
+  "/:taskId/comments",
+  verifyJWT,
+  checkTaskExistence,
+  canTask("view_comments"),
+  getTaskComments,
+);
 
 export default taskRouter;
