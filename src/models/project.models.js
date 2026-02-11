@@ -292,7 +292,7 @@ projectSchema.methods.changeOwner = async function ({
   this.members.forEach((member) => {
     if (member.user.toString() === newOwnerId.toString()) {
       member.role = "owner";
-      this.projectOwner = member.user
+      this.projectOwner = member.user;
     }
   });
 

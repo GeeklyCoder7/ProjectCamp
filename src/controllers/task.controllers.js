@@ -3,6 +3,7 @@ import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { getProjectOrThrow } from "../utils/helpers.js";
+import { TaskComment } from "../models/task_comments.model.js";
 
 // Adds a new task for the project
 const addTask = asyncHandler(async (req, res) => {
@@ -95,7 +96,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "new status is required to update the old status");
   }
 
-  await task.updateStatus({ newStatus, currentMemberId: req.user._id });
+  await task.updateStatus(newStatus);
 
   return res.status(200).json(
     new ApiResponse(
@@ -132,10 +133,11 @@ const getTaskComments = asyncHandler(async (req, res) => {
   const limit = Math.max(parseInt(req.query.limit) || 5, 1);
   const sort = req.query.sort ?? "asc";
 
-  const { totalComments, paginatedComments } = await task.getComments({
+  const { comments, totalComments } = await task.getComments({
     page,
     limit,
     sort,
+    currentUserId: req.user._id,
   });
 
   return res.status(200).json(
@@ -145,10 +147,37 @@ const getTaskComments = asyncHandler(async (req, res) => {
         totalComments,
         totalPages: Math.ceil(totalComments / limit),
         page,
-        comments: paginatedComments,
+        comments,
       },
       "Comments fetched successfully",
     ),
+  );
+});
+
+// Deletes the specified comment
+const deleteComment = asyncHandler(async (req, res) => {
+  const task = req.task;
+
+  const { commentId } = req.params;
+
+  if (!commentId) {
+    throw new ApiError(400, "Comment ID is required");
+  }
+
+  const commentToDelete = await TaskComment.findById(commentId);
+
+  if (!commentToDelete) {
+    throw new ApiError(404, "Comment not found");
+  }
+
+  await commentToDelete.deleteComment({ currentUserId: req.user._id, task });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      null,
+      "Comment deleted successfully"
+    )
   );
 });
 
@@ -159,4 +188,5 @@ export {
   updateTaskStatus,
   addComment,
   getTaskComments,
+  deleteComment,
 };

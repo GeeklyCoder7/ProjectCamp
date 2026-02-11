@@ -1,27 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import { ApiError } from "../utils/api-error.js";
 import { getProjectOrThrow } from "../utils/helpers.js";
-
-const taskCommentSchema = new Schema(
-  {
-    commentedBy: {
-      type: mongoose.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    mentions: [
-      {
-        type: mongoose.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    content: {
-      type: String,
-      required: true,
-    },
-  },
-  { timestamps: true },
-);
+import { TaskComment } from "./task_comments.model.js";
 
 const taskSchema = new Schema(
   {
@@ -67,10 +47,6 @@ const taskSchema = new Schema(
       enum: ["todo", "in_progress", "completed"],
       default: "todo",
       index: true,
-    },
-    comments: {
-      type: [taskCommentSchema],
-      default: [],
     },
   },
   {
@@ -165,17 +141,13 @@ taskSchema.methods.canUnassignMember = function (unassignMemberId) {
 };
 
 // Updates the task status
-taskSchema.methods.updateStatus = async function ({
-  newStatus,
-  currentMemberId,
-}) {
+taskSchema.methods.updateStatus = async function (newStatus) {
   // Denotes what are the allowed transitions from the current transition
   const allowedStatusTransitions = {
     todo: ["in_progress", "completed"],
     in_progress: ["completed"],
     completed: [],
   };
-  console.log(`User id being passed: ${currentMemberId}`);
 
   // Checking if the transition is allowed from the current status to the new status
   if (!allowedStatusTransitions[this.taskStatus].includes(newStatus)) {
@@ -196,14 +168,15 @@ taskSchema.methods.addComment = async function ({
   content,
   mentions,
 }) {
-  // Adding the comment
-  this.comments.push({
+  await this.can("add_comment", commentedById);
+
+  return TaskComment.create({
+    taskId: this._id,
+    projectId: this.projectId,
     commentedBy: commentedById,
-    mentions: mentions ?? null,
+    mentions: mentions ?? [],
     content,
   });
-
-  await this.save();
 };
 
 // Returns the task comments in paginated format
@@ -211,22 +184,21 @@ taskSchema.methods.getComments = async function ({
   page = 1,
   limit = 10,
   sort = "dsc",
+  currentUserId,
 }) {
-  const rawComments = this.comments;
-  const start = (page - 1) * limit;
-  const end = start + limit;
+  await this.can("view_comments", currentUserId);
 
-  const sortedComments = [...rawComments].sort((a, b) =>
-    sort === "asc"
-      ? new Date(a.createdAt) - new Date(b.createdAt)
-      : new Date(b.createdAt) - new Date(a.createdAt),
-  );
-
-  const paginatedComments = sortedComments.slice(start, end);
+  const { comments, totalComments } =
+    await TaskComment.getPaginatedTaskComments({
+      taskId: this._id,
+      page,
+      limit,
+      sort,
+    });
 
   return {
-    totalComments: rawComments.length,
-    paginatedComments,
+    totalComments,
+    comments,
   };
 };
 

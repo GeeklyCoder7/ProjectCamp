@@ -9,6 +9,7 @@ import {
   addComment,
   addTask,
   assignTask,
+  deleteComment,
   getTaskComments,
   unassignMember,
   updateTaskStatus,
@@ -57,6 +58,7 @@ taskRouter.patch(
   updateTaskStatus,
 );
 
+// Used for adding a comment
 taskRouter.post(
   "/:taskId/comments",
   verifyJWT,
@@ -65,12 +67,21 @@ taskRouter.post(
   addComment,
 );
 
+// Used for fetching comments with pagination
 taskRouter.get(
   "/:taskId/comments",
   verifyJWT,
   checkTaskExistence,
   canTask("view_comments"),
   getTaskComments,
+);
+
+// Used for deleting a comment
+taskRouter.delete(
+  "/:taskId/comments/:commentId",
+  verifyJWT,
+  checkTaskExistence,
+  deleteComment,
 );
 
 export default taskRouter;
