@@ -1,7 +1,10 @@
 import mongoose, { Schema } from "mongoose";
 import { ApiError } from "../utils/api-error.js";
-import { getProjectOrThrow } from "../utils/helpers.js";
+import {
+  getProjectOrThrow,
+} from "../utils/helpers.js";
 import { TaskComment } from "./task_comments.model.js";
+import { TaskActivity } from "./task_activities.model.js";
 
 const taskSchema = new Schema(
   {
@@ -109,6 +112,17 @@ taskSchema.methods.assignMember = async function ({
   // Assigning the member
   this.assignedTo.push(assignMemberId);
   await this.save();
+
+  // Logging the activity
+  await TaskActivity.logTaskActivity({
+    type: "TASK_ASSIGNED",
+    taskId: this._id,
+    projectId: this.projectId,
+    performedBy: currentUserId,
+    metadata: {
+      newMemberId: assignMemberId,
+    },
+  });
 };
 
 // Checks if the member can be assigned to the task
@@ -122,7 +136,10 @@ taskSchema.methods.canAssignMember = function ({ assignMemberId }) {
 };
 
 // Unassigns (removes) the member from the task
-taskSchema.methods.unassignMember = async function ({ unassignMemberId }) {
+taskSchema.methods.unassignMember = async function ({
+  currentUserId,
+  unassignMemberId,
+}) {
   this.canUnassignMember(unassignMemberId);
 
   // Unassigning / removing the member
@@ -131,6 +148,17 @@ taskSchema.methods.unassignMember = async function ({ unassignMemberId }) {
   );
 
   await this.save();
+
+  // Logging activity
+  await TaskActivity.logTaskActivity({
+    type: "TASK_UNASSIGNED",
+    taskId: this._id,
+    projectId: this.projectId,
+    performedBy: currentUserId,
+    metadata: {
+      removedMemberId: unassignMemberId,
+    },
+  });
 };
 
 // Checks if the member can be assigned
@@ -141,7 +169,7 @@ taskSchema.methods.canUnassignMember = function (unassignMemberId) {
 };
 
 // Updates the task status
-taskSchema.methods.updateStatus = async function (newStatus) {
+taskSchema.methods.updateStatus = async function (currentUserId, newStatus) {
   // Denotes what are the allowed transitions from the current transition
   const allowedStatusTransitions = {
     todo: ["in_progress", "completed"],
@@ -157,9 +185,24 @@ taskSchema.methods.updateStatus = async function (newStatus) {
     );
   }
 
+  // Storing the old status for activity logging
+  const oldStatus = this.taskStatus;
+
   // Updating the status
   this.taskStatus = newStatus;
   await this.save();
+
+  // Logging the activity
+  await TaskActivity.logTaskActivity({
+    type: "TASK_STATUS_UPDATED",
+    taskId: this._id,
+    projectId: this.projectId,
+    performedBy: currentUserId,
+    metadata: {
+      oldStatus,
+      newStatus,
+    },
+  });
 };
 
 // Adds a comment to the task
@@ -170,12 +213,20 @@ taskSchema.methods.addComment = async function ({
 }) {
   await this.can("add_comment", commentedById);
 
-  return TaskComment.create({
+  TaskComment.create({
     taskId: this._id,
     projectId: this.projectId,
     commentedBy: commentedById,
     mentions: mentions ?? [],
     content,
+  });
+
+  // Logging activity
+  await TaskActivity.logTaskActivity({
+    type: "COMMENT_ADDED",
+    taskId: this._id,
+    projectId: this.projectId,
+    performedBy: commentedById,
   });
 };
 

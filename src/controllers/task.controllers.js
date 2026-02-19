@@ -78,6 +78,7 @@ const unassignMember = asyncHandler(async (req, res) => {
   }
 
   await task.unassignMember({
+    currentUserId: req.user._id,
     unassignMemberId,
   });
 
@@ -96,7 +97,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "new status is required to update the old status");
   }
 
-  await task.updateStatus(newStatus);
+  await task.updateStatus(req.user._id, newStatus);
 
   return res.status(200).json(
     new ApiResponse(
@@ -172,13 +173,9 @@ const deleteComment = asyncHandler(async (req, res) => {
 
   await commentToDelete.deleteComment({ currentUserId: req.user._id, task });
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      null,
-      "Comment deleted successfully"
-    )
-  );
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Comment deleted successfully"));
 });
 
 export {

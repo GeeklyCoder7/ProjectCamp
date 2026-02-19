@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { ApiError } from "../utils/api-error.js";
+import { TaskActivity } from "./task_activities.model.js";
 
 const taskCommentSchema = new Schema(
   {
@@ -83,6 +84,14 @@ taskCommentSchema.methods.deleteComment = async function ({
   }
 
   await this.deleteOne();
+
+  // Logging activity
+  await TaskActivity.logTaskActivity({
+    type: "COMMENT_DELETED",
+    taskId: this.taskId,
+    projectId: this.projectId,
+    performedBy: currentUserId,
+  });
 
   return true;
 };

@@ -13,8 +13,8 @@ import jwt from "jsonwebtoken";
 // Cookie options
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
+  secure: false,
+  sameSite: "lax",
 };
 
 // Controller for registering a new user
@@ -161,6 +161,7 @@ const login = asyncHandler(async (req, res) => {
           email: user.email,
         },
         accessToken,
+        refreshToken,
       },
       "Login successful",
     ),
@@ -170,15 +171,18 @@ const login = asyncHandler(async (req, res) => {
 // Generates a new access token if exising expired
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const cookieRefreshToken = req.cookies?.refreshToken;
+  const bodyRefreshToken = req.body?.refreshToken;
 
-  if (!cookieRefreshToken) {
+  const incomingRefreshToken = cookieRefreshToken || bodyRefreshToken;
+
+  if (!incomingRefreshToken) {
     throw new ApiError(401, "RefreshToken is missing.");
   }
 
   let decodedUser;
   try {
     decodedUser = jwt.verify(
-      cookieRefreshToken,
+      incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET,
     );
   } catch (error) {
@@ -193,7 +197,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 
   // Compare the existing user's refresh token from DB with cookie's refresh token –> VERY IMPORTANT
-  if (user.refreshToken !== cookieRefreshToken) {
+  if (user.refreshToken !== incomingRefreshToken) {
     throw new ApiError(403, "Refresh token mismatch.");
   }
 
@@ -203,6 +207,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   // Updating the refreshToken of the current user
   user.refreshToken = newRefreshToken;
+  res.cookie("refreshToken", newRefreshToken, cookieOptions);
   await user.save({ validateBeforeSave: false });
 
   return res.status(200).json(

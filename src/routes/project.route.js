@@ -3,6 +3,7 @@ import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import {
   addProjectMember,
   createProject,
+  deleteProject,
   getAllProjects,
   getAllTasks,
   getProjectActivities,
@@ -107,5 +108,14 @@ projectRouter.get(
   requireProjectRoles(["member", "owner", "admin"]), // Any member or person inside the project can view, no other outsider is allowed
   getAllTasks,
 );
+
+// Used to delete a project
+projectRouter.delete(
+  "/:projectId/delete",
+  verifyJWT,
+  checkProjectExistence,
+  requireProjectRoles(["owner", "admin"]),
+  deleteProject,
+)
 
 export default projectRouter;

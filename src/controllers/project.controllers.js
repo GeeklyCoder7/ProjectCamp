@@ -23,8 +23,14 @@ const createProject = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       {
-        name: newProject.projectName,
-        id: newProject._id,
+        _id: newProject._id,
+        projectName: newProject.projectName,
+        description: newProject.description,
+        projectOwner: newProject.projectOwner,
+        members: newProject.members,
+        status: newProject.status,
+        createdAt: newProject.createdAt,
+        updatedAt: newProject.updatedAt,
       },
       "Project created successfully",
     ),
@@ -194,7 +200,7 @@ const getAllProjects = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const page = Math.max(parseInt(req.query.page) || 1, 1);
-  const limit = Math.max(parseInt(req.query.limit) || 10, 1);
+  const limit = Math.max(parseInt(req.query.limit) || 5, 1);
   const skip = (page - 1) * limit;
 
   const projects = await Project.find({
@@ -372,7 +378,11 @@ const getAllTasks = asyncHandler(async (req, res) => {
   const limit = Math.max(parseInt(req.query.limit) || 10, 1);
   const sort = req.query.sort ?? "asc";
 
-  const { totalLength, tasks } = await project.getAllTasksPaginated({page, limit, sort});
+  const { totalLength, tasks } = await project.getAllTasksPaginated({
+    page,
+    limit,
+    sort,
+  });
 
   return res.status(200).json(
     new ApiResponse(200, {
@@ -382,6 +392,23 @@ const getAllTasks = asyncHandler(async (req, res) => {
       tasks,
     }),
   );
+});
+
+// Deletes the project
+const deleteProject = asyncHandler(async (req, res) => {
+  const project = req.project;
+
+  // Checking if the performer is the owner of this project
+  if (!project.isOwner(req.user._id)) {
+    throw new ApiError(403, "Only owners can delete the project");
+  }
+
+  const projectId = project._id;
+  await project.deleteOne();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, null, "Project deleted successfully"));
 });
 
 export {
@@ -396,4 +423,5 @@ export {
   leaveProject,
   getProjectActivities,
   getAllTasks,
+  deleteProject,
 };
